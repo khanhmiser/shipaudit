@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ingest_events",
+  "description": "Time Series collection (timeField=ts, metaField=meta) + TTL expireAfterSeconds.",
+  "type": "object",
+  "properties": {
+    "ts": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "meta": {
+      "type": "object",
+      "description": "metaField của Time Series: carrier, statement_id"
+    },
+    "rows": {
+      "type": "integer"
+    },
+    "duration_ms": {
+      "type": "integer"
+    },
+    "lag_seconds": {
+      "type": "number"
+    },
+    "status": {
+      "enum": [
+        "OK",
+        "ERROR",
+        "PARTIAL"
+      ]
+    }
+  },
+  "required": [
+    "ts",
+    "meta",
+    "rows",
+    "status"
+  ]
+}

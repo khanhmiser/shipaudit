@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "statement_lines",
+  "description": "Dòng bảng kê đã chuẩn hóa từ file của từng hãng (A parse).",
+  "type": "object",
+  "properties": {
+    "statement_id": {
+      "type": "string"
+    },
+    "carrier": {
+      "type": "string"
+    },
+    "order_code": {
+      "type": "string"
+    },
+    "period": {
+      "type": "string"
+    },
+    "cod_collected": {
+      "type": "integer"
+    },
+    "shipping_fee": {
+      "type": "integer"
+    },
+    "insurance_fee": {
+      "type": "integer"
+    },
+    "return_shipping_fee": {
+      "type": "integer"
+    },
+    "storage_fee": {
+      "type": "integer"
+    },
+    "address_change_fee": {
+      "type": "integer"
+    },
+    "inspection_fee": {
+      "type": "integer"
+    },
+    "promotion": {
+      "type": "integer"
+    },
+    "transfer_fee": {
+      "type": "integer"
+    },
+    "net_paid": {
+      "type": "integer",
+      "description": "Số tiền hãng thực chuyển cho dòng này (số thực nhận)"
+    },
+    "raw": {
+      "type": "object",
+      "description": "Dòng gốc của bảng kê để truy vết"
+    },
+    "ingested_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "statement_id",
+    "carrier",
+    "order_code",
+    "net_paid"
+  ]
+}

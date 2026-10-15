@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "reconciliations",
+  "description": "Kết quả đối soát từng đơn. Khóa duy nhất: (statement_id, order_code).",
+  "type": "object",
+  "properties": {
+    "statement_id": {
+      "type": "string"
+    },
+    "order_code": {
+      "type": "string"
+    },
+    "carrier": {
+      "type": "string"
+    },
+    "expected_amount": {
+      "type": "integer",
+      "description": "Số tiền phải nhận"
+    },
+    "actual_amount": {
+      "type": "integer",
+      "description": "Số tiền thực nhận"
+    },
+    "diff": {
+      "type": "integer",
+      "description": "phải nhận - thực nhận"
+    },
+    "diff_type": {
+      "enum": [
+        "NONE",
+        "FEE_MISMATCH",
+        "RETURN_FEE_DOUBLE",
+        "MISSING_IN_STATEMENT",
+        "COD_MISMATCH",
+        "LATE_PAYOUT"
+      ]
+    },
+    "breakdown": {
+      "type": "object",
+      "description": "Từng khoản cộng/trừ (Breakdown)"
+    },
+    "claim_deadline_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "claim_hours_left": {
+      "type": "number"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "statement_id",
+    "order_code",
+    "carrier",
+    "expected_amount",
+    "actual_amount",
+    "diff",
+    "diff_type"
+  ]
+}

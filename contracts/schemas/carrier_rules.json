@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "carrier_rules",
+  "description": "Quy tắc từng hãng. Là DỮ LIỆU, không hard-code. Hãng giả Carrier A/B/C.",
+  "type": "object",
+  "properties": {
+    "carrier": {
+      "type": "string"
+    },
+    "version": {
+      "type": "integer"
+    },
+    "dim_weight_divisor": {
+      "type": "integer",
+      "description": "Hệ số chia khối lượng quy đổi (cm3/kg)"
+    },
+    "rate_table": {
+      "type": "array",
+      "description": "Bảng cước theo vùng và mốc kg"
+    },
+    "surcharges": {
+      "type": "object",
+      "description": "insurance_pct, return_pct, storage_per_day, address_change, inspection..."
+    },
+    "cod_payout_days": {
+      "type": "integer",
+      "description": "Lịch trả COD T+n"
+    },
+    "claim_window_hours": {
+      "type": "integer",
+      "description": "Hạn khiếu nại tính bằng giờ (có hãng chỉ 24h)"
+    },
+    "transfer_fee": {
+      "type": "integer"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "carrier",
+    "dim_weight_divisor",
+    "rate_table",
+    "cod_payout_days",
+    "claim_window_hours"
+  ]
+}

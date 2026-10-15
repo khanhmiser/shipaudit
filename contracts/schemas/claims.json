@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "claims",
+  "description": "Khiếu nại. Con người duyệt trước khi gửi hãng.",
+  "type": "object",
+  "properties": {
+    "reconciliation_id": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "DRAFT",
+        "APPROVED",
+        "SUBMITTED",
+        "RECOVERED",
+        "REJECTED",
+        "EXPIRED"
+      ]
+    },
+    "source": {
+      "enum": [
+        "manual",
+        "datadog_webhook"
+      ]
+    },
+    "alert_id": {
+      "type": "string",
+      "description": "Dùng để idempotent webhook"
+    },
+    "amount": {
+      "type": "integer"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "approved_by": {
+      "type": "string"
+    },
+    "approved_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "reconciliation_id",
+    "status",
+    "source"
+  ]
+}

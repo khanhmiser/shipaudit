@@ -1,0 +1,23 @@
+# Thay @A-GITHUB-USERNAME bằng tài khoản GitHub của A.
+/app/                          @A-GITHUB-USERNAME
+/datadog/ops/                  @A-GITHUB-USERNAME
+/scenarios/ops/                @A-GITHUB-USERNAME
+/tests/ingest/                 @A-GITHUB-USERNAME
+/tests/api/                    @A-GITHUB-USERNAME
+/tests/smoke/                  @A-GITHUB-USERNAME
+/docker-compose.yml            @A-GITHUB-USERNAME
+/.env.example                  @A-GITHUB-USERNAME
+
+/core/                         @khanhmiser
+/pipelines/                    @khanhmiser
+/generator/                    @khanhmiser
+/ui/                           @khanhmiser
+/datadog/biz/                  @khanhmiser
+/scenarios/biz/                @khanhmiser
+/tests/core/                   @khanhmiser
+/tests/pipelines/              @khanhmiser
+
+/contracts/                    @A-GITHUB-USERNAME @khanhmiser
+/common/                       @A-GITHUB-USERNAME @khanhmiser
+/docs/                         @A-GITHUB-USERNAME @khanhmiser
+/README.md                     @A-GITHUB-USERNAME @khanhmiser

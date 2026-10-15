@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "orders",
+  "description": "Đơn hàng gốc (nền từ Olist hoặc sinh tổng hợp). Tiền là số nguyên VNĐ.",
+  "type": "object",
+  "properties": {
+    "order_code": {
+      "type": "string"
+    },
+    "carrier": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "weight_g": {
+      "type": "integer"
+    },
+    "length_cm": {
+      "type": "integer"
+    },
+    "width_cm": {
+      "type": "integer"
+    },
+    "height_cm": {
+      "type": "integer"
+    },
+    "cod_amount": {
+      "type": "integer"
+    },
+    "prepaid_by_shop": {
+      "type": "integer"
+    },
+    "declared_value": {
+      "type": "integer"
+    },
+    "status": {
+      "enum": [
+        "DELIVERED",
+        "RETURNED",
+        "RETURN_BY_CUSTOMER",
+        "DEFECTIVE",
+        "LOST"
+      ]
+    },
+    "delivered_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "enum": [
+        "olist",
+        "synthetic"
+      ]
+    }
+  },
+  "required": [
+    "order_code",
+    "carrier",
+    "weight_g",
+    "cod_amount",
+    "status"
+  ]
+}
