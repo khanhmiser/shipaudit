@@ -1,32 +1,56 @@
-# Hạ tầng do A phụ trách. MongoDB dùng Atlas (MONGO_URI trong .env).
+# Hạ tầng do A phụ trách. MongoDB dùng Atlas (MONGO_URI trong .env), không có container Mongo.
+# Chạy: cp .env.example .env (điền MONGO_URI, DD_API_KEY) rồi `docker compose up --build`.
+x-app: &app
+  build:
+    context: .
+    dockerfile: app/Dockerfile
+  env_file: .env
+  environment: &app-env
+    DD_AGENT_HOST: datadog-agent      # ddtrace và DogStatsD gửi về Agent trong compose
+    DD_DOGSTATSD_PORT: "8125"
+    DD_TRACE_AGENT_PORT: "8126"
+    UPLOAD_DIR: /srv/data/uploads
+
 services:
   api:
-    build:
-      context: .
-      dockerfile: app/Dockerfile
+    <<: *app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
-    env_file: .env
+    environment:
+      <<: *app-env
+      DD_SERVICE: shipaudit-api
     ports:
       - "8000:8000"
+    volumes:
+      - ./data/uploads:/srv/data/uploads   # file bảng kê đã nạp, giữ lại để truy vết
     depends_on:
       - datadog-agent
+    healthcheck:
+      # Ảnh python:slim không có curl nên dùng urllib.
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=4).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     labels:
       com.datadoghq.ad.logs: '[{"source": "python", "service": "shipaudit-api"}]'
 
   ui:
-    build:
-      context: .
-      dockerfile: app/Dockerfile
+    <<: *app
     command: streamlit run ui/app.py --server.port 8501 --server.address 0.0.0.0
-    env_file: .env
+    environment:
+      <<: *app-env
+      DD_SERVICE: shipaudit-ui
     ports:
       - "8501:8501"
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "python", "service": "shipaudit-ui"}]'
 
   datadog-agent:
     image: gcr.io/datadoghq/agent:7
     environment:
       - DD_API_KEY=${DD_API_KEY}
-      - DD_SITE=${DD_SITE:-datadoghq.com}
+      - DD_SITE=${DD_SITE:-uk1.datadoghq.com}
+      - DD_ENV=${DD_ENV:-dev}
       - DD_LOGS_ENABLED=true
       - DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true
       - DD_APM_ENABLED=true
