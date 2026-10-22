@@ -9,7 +9,8 @@ DD_LOGS_AGENTLESS=true (log lỗi lên Log Management). Các pha:
    (trước đó một lượt nạp khởi động không tính, vì lượt đầu trên database mới chậm).
 2. Sự cố: bật công tắc lỗi nạp (delay_ms, fail_rate). Độ trễ nạp và p95 POST /statements tăng, một phần lượt
    nạp trả 503 và ghi log ERROR → các monitor vận hành (datadog/ops/monitors.json) kích hoạt.
-3. Khắc phục: tắt công tắc, nạp tiếp; số liệu về bình thường → monitor về OK.
+3. Khắc phục: tắt công tắc, nạp tiếp `--recover-minutes` phút (mặc định 11: dài hơn cửa sổ 10 phút của monitor
+   tỉ lệ lỗi; hết lượt nạp thì phép chia không có dữ liệu và monitor giữ trạng thái cũ) → monitor về OK.
 Nạp lại cùng một file ra cùng statement_id nên không nhân đôi dữ liệu. Có ADMIN_TOKEN thì gửi kèm X-Admin-Token.
 Báo cáo ghi ra generator/out/scenario/ops-report.json.
 """
@@ -123,8 +124,8 @@ def run_phase(api: Api, name: str, carrier: str, sample: Path, minutes: float, e
     return s
 
 
-def run(api: Api, *, carrier: str = "carrier_b", minutes: float = 6, every: float = 20, delay_ms: int = 7_000,
-        fail_rate: float = 0.5, out_dir: Path | None = OUT_DIR, log: Callable[[str], None] = print,
+def run(api: Api, *, carrier: str = "carrier_b", minutes: float = 6, recover_minutes: float | None = None,
+        every: float = 20, delay_ms: int = 7_000, fail_rate: float = 0.5, out_dir: Path | None = OUT_DIR, log: Callable[[str], None] = print,
         sleep: Callable[[float], None] = time.sleep) -> dict:
     sample = SAMPLES / f"statement_{carrier}.csv"
     status, health = api.health()
@@ -146,8 +147,9 @@ def run(api: Api, *, carrier: str = "carrier_b", minutes: float = 6, every: floa
         incident = run_phase(api, "su-co", carrier, sample, minutes, every, log, sleep)
     finally:
         status, fault = api.reset_fault()
-    log(f"\n== 3. Khắc phục: tắt công tắc {fault} ({minutes:g} phút) ==")
-    recovered = run_phase(api, "khac-phuc", carrier, sample, minutes, every, log, sleep)
+    recover = minutes if recover_minutes is None else recover_minutes
+    log(f"\n== 3. Khắc phục: tắt công tắc {fault} ({recover:g} phút) ==")
+    recovered = run_phase(api, "khac-phuc", carrier, sample, recover, every, log, sleep)
 
     report = {"api": api.base, "carrier": carrier, "fault": {"delay_ms": delay_ms, "fail_rate": fail_rate},
               "phases": [normal, incident, recovered]}
@@ -167,7 +169,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Kịch bản lớp vận hành ShipAudit")
     parser.add_argument("--api", default=os.getenv("SHIPAUDIT_API_URL", "http://localhost:8000"))
     parser.add_argument("--carrier", default="carrier_b", choices=["carrier_a", "carrier_b", "carrier_c"])
-    parser.add_argument("--hold-minutes", type=float, default=6, help="số phút mỗi pha (monitor cần cửa sổ 5 phút)")
+    parser.add_argument("--hold-minutes", type=float, default=6, help="số phút pha 1 và 2 (monitor cần cửa sổ 5 phút)")
+    parser.add_argument("--recover-minutes", type=float, default=11,
+                        help="số phút pha khắc phục (monitor tỉ lệ lỗi dùng cửa sổ 10 phút)")
     parser.add_argument("--every", type=float, default=20, help="số giây giữa hai lượt nạp")
     parser.add_argument("--delay-ms", type=int, default=7_000)
     parser.add_argument("--fail-rate", type=float, default=0.5)
@@ -175,8 +179,8 @@ def main() -> None:
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     api = Api(args.api, os.getenv("ADMIN_TOKEN", ""))
-    run(api, carrier=args.carrier, minutes=args.hold_minutes, every=args.every, delay_ms=args.delay_ms,
-        fail_rate=args.fail_rate, log=lambda s: print(s, flush=True))
+    run(api, carrier=args.carrier, minutes=args.hold_minutes, recover_minutes=args.recover_minutes,
+        every=args.every, delay_ms=args.delay_ms, fail_rate=args.fail_rate, log=lambda s: print(s, flush=True))
 
 
 if __name__ == "__main__":
