@@ -66,3 +66,36 @@ class FaultConfig(BaseModel):
 class FaultUpdate(BaseModel):
     delay_ms: int | None = Field(default=None, ge=0, le=120_000)
     fail_rate: float | None = Field(default=None, ge=0, le=1)
+
+
+class DatadogAlert(BaseModel):
+    """Payload webhook Datadog (mẫu ở datadog/ops/webhook.json). Trường lạ được bỏ qua."""
+    model_config = ConfigDict(extra="ignore")
+
+    alert_id: str = Field(min_length=1, max_length=200,
+                          description="Khóa idempotent: $ALERT_CYCLE_KEY (một mã cho cả vòng báo động → hết)")
+    alert_transition: str | None = Field(default=None, description="$ALERT_TRANSITION: Triggered, Warn, Recovered...")
+    monitor_id: str | int | None = Field(default=None, description="$ALERT_ID")
+    title: str | None = None
+    scope: str | None = Field(default=None, description="$ALERT_SCOPE, vd carrier:carrier_b")
+    tags: str | list[str] | None = Field(default=None, description="$TAGS")
+    reconciliation_id: str | None = Field(default=None, description="Chỉ định đúng một bản ghi đối soát")
+    within_hours: float = Field(default=48, gt=0, le=24 * 31,
+                                description="Tạo claim cho khoản hết hạn khiếu nại trong số giờ tới")
+
+
+class WebhookClaim(BaseModel):
+    claim_id: str | None = None
+    reconciliation_id: str
+    status: str
+
+
+class WebhookResult(BaseModel):
+    alert_id: str
+    action: Literal["created", "ignored"]
+    reason: str | None = None
+    carrier: str | None = None
+    count: int = 0
+    claims: list[WebhookClaim] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+    stub: bool = Field(default=False, description="true nếu dùng StubClaimService vì B chưa cài")
