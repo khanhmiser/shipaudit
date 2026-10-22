@@ -3,6 +3,12 @@
 Kèm vá nhỏ cho mongomock khi chạy với pymongo mới (giống tests/ingest/conftest.py): pymongo ≥ 4.11 truyền
 thêm `sort=` vào BulkOperationBuilder.add_update, mongomock 4.3 chưa nhận tham số này.
 """
+import os
+
+# Test không gửi metric / log thật lên Datadog, kể cả khi .env có DD_API_KEY.
+os.environ["DD_METRICS_AGENTLESS"] = "false"
+os.environ["DD_LOGS_AGENTLESS"] = "false"
+
 from pathlib import Path
 
 import mongomock
