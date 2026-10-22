@@ -117,7 +117,7 @@ def test_broken_rows_give_partial(db, run, metrics):
     res = run("carrier_b", raw=raw)
     assert res.status == PARTIAL and res.rows == 4 and res.skipped == 2 and len(res.errors) == 2
     assert db[Collections.INGEST_EVENTS].find_one()["status"] == PARTIAL
-    assert ("shipaudit.ops.ingest_errors", 2, {"carrier": "carrier_b", "status": PARTIAL}) in metrics
+    assert ("shipaudit.ops.ingest_errors", 2, {"carrier": "carrier_b"}) in metrics
 
 
 def test_wrong_header_gives_error_and_writes_nothing(db, run):
@@ -143,7 +143,7 @@ def test_delay_fault_raises_lag(db, run, metrics):
     res = run(faults=Faults(delay_ms=2_500))
     assert res.status == OK and res.lag_seconds == 2.5
     assert db[Collections.INGEST_EVENTS].find_one()["lag_seconds"] == 2.5
-    assert ("shipaudit.ops.ingest_lag_seconds", 2.5, {"carrier": "carrier_a", "status": OK}) in metrics
+    assert ("shipaudit.ops.ingest_lag_seconds", 2.5, {"carrier": "carrier_a"}) in metrics
 
 
 def test_fail_rate_fault(db, run):

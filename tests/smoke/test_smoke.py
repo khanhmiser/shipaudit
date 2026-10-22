@@ -95,7 +95,7 @@ def test_ops_scenario_end_to_end_over_http(server, tmp_path):
 
     # Trạng thái để lại: công tắc đã tắt, mỗi lượt nạp có một ingest_event, bảng kê nạp lại không nhân đôi.
     assert api._call("GET", "/admin/ingest-fault")[1] == {"delay_ms": 0, "fail_rate": 0.0}
-    assert [e["status"] for e in db.ingest_events.find().sort("ts", 1)] == ["OK", "ERROR", "OK"]
+    assert [e["status"] for e in db.ingest_events.find().sort("ts", 1)] == ["OK", "OK", "ERROR", "OK"]  # có lượt khởi động
     assert db.statement_lines.count_documents({}) == 4
 
 

@@ -5,7 +5,8 @@
 
 Cần API đang chạy (uvicorn app.main:app) với DD_API_KEY (metric gửi thẳng Datadog khi không có Agent) và
 DD_LOGS_AGENTLESS=true (log lỗi lên Log Management). Các pha:
-1. Bình thường: công tắc lỗi tắt, cứ `--every` giây nạp lại bảng kê mẫu của `--carrier` qua POST /statements.
+1. Bình thường: công tắc lỗi tắt, cứ `--every` giây nạp lại bảng kê mẫu của `--carrier` qua POST /statements
+   (trước đó một lượt nạp khởi động không tính, vì lượt đầu trên database mới chậm).
 2. Sự cố: bật công tắc lỗi nạp (delay_ms, fail_rate). Độ trễ nạp và p95 POST /statements tăng, một phần lượt
    nạp trả 503 và ghi log ERROR → các monitor vận hành (datadog/ops/monitors.json) kích hoạt.
 3. Khắc phục: tắt công tắc, nạp tiếp; số liệu về bình thường → monitor về OK.
@@ -132,6 +133,10 @@ def run(api: Api, *, carrier: str = "carrier_b", minutes: float = 6, every: floa
     log(f"API {api.base}: {health}")
 
     api.reset_fault()
+    # Lượt đầu trên database mới tạo index và collection nên chậm vài giây: nạp khởi động, không tính vào pha nào,
+    # để pha bình thường không kích hoạt nhầm monitor độ trễ.
+    status, body = api.upload(carrier, sample)
+    log(f"Nạp khởi động: {status}, lag {body.get('lag_seconds') if isinstance(body, dict) else '?'} giây")
     log(f"\n== 1. Bình thường ({minutes:g} phút) ==")
     normal = run_phase(api, "binh-thuong", carrier, sample, minutes, every, log, sleep)
 

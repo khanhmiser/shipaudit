@@ -242,12 +242,14 @@ def ingest(
         **({"error": result.error} if result.error else {}),
     })
 
-    tags = {"carrier": carrier, "status": result.status}
+    # Gauge chỉ gắn tag hãng: tách theo trạng thái thì chuỗi status:ERROR dừng ở giá trị cuối và Datadog nội suy
+    # thêm vài phút, làm monitor độ trễ hồi phục chậm. Trạng thái nằm ở count ingest_runs.
+    tags = {"carrier": carrier}
     emit("shipaudit.ops.ingest_lag_seconds", result.lag_seconds, tags)
     emit("shipaudit.ops.ingest_duration_ms", result.duration_ms, tags)
     emit("shipaudit.ops.statement_rows", result.rows, tags)
     emit("shipaudit.ops.ingest_errors", result.skipped + (1 if result.status == ERROR else 0), tags)
-    count("shipaudit.ops.ingest_runs", 1, tags)  # tỉ lệ lỗi = runs{status:error} / runs
+    count("shipaudit.ops.ingest_runs", 1, {**tags, "status": result.status})  # tỉ lệ lỗi = runs{status:error} / runs
     level = logging.ERROR if result.status == ERROR else logging.INFO
     log.log(level, "nạp bảng kê thất bại" if result.status == ERROR else "nạp bảng kê xong", extra={
         "statement_id": statement_id, "carrier": carrier, "status": result.status, "rows": result.rows,

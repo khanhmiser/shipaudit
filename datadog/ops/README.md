@@ -6,7 +6,7 @@
 
 | Metric | Kiểu | Tag | Nơi phát |
 |---|---|---|---|
-| `ingest_lag_seconds`, `ingest_duration_ms`, `statement_rows`, `ingest_errors` | gauge | carrier, status | `app/ingest/pipeline.py`, mỗi lượt nạp |
+| `ingest_lag_seconds`, `ingest_duration_ms`, `statement_rows`, `ingest_errors` | gauge | carrier | `app/ingest/pipeline.py`, mỗi lượt nạp |
 | `ingest_runs` | count | carrier, status | mỗi lượt nạp (tính tỉ lệ lỗi) |
 | `api_latency_ms.p95`, `api_latency_ms.max` | gauge (mỗi 10 giây) | route, method | `app/telemetry/http.py` |
 | `api_requests` | count | route, method, status_class | `app/telemetry/http.py` |
