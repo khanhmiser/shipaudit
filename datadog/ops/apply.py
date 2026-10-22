@@ -102,14 +102,14 @@ def apply(api: DatadogApi, dashboard: dict | None, monitors: list[dict], site: s
 
 
 def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     parser = argparse.ArgumentParser(description="Tạo / cập nhật dashboard và monitor vận hành ShipAudit")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--only", choices=["all", "dashboard", "monitors"], default="all")
     parser.add_argument("--ui-url", default=os.getenv("SHIPAUDIT_UI_URL", DEFAULT_UI_URL))
     parser.add_argument("--notify", default="", help="handle thông báo, vd @webhook-shipaudit-claims")
     args = parser.parse_args(argv)
-    for stream in (sys.stdout, sys.stderr):
-        stream.reconfigure(encoding="utf-8", errors="backslashreplace")
 
     dashboard, monitors = load_definitions()
     monitors = [render_monitor(m, args.ui_url, args.notify) for m in monitors]

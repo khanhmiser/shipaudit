@@ -166,6 +166,8 @@ def run(api: Api, *, carrier: str = "carrier_b", minutes: float = 6, recover_min
 
 
 def main() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     parser = argparse.ArgumentParser(description="Kịch bản lớp vận hành ShipAudit")
     parser.add_argument("--api", default=os.getenv("SHIPAUDIT_API_URL", "http://localhost:8000"))
     parser.add_argument("--carrier", default="carrier_b", choices=["carrier_a", "carrier_b", "carrier_c"])
@@ -176,8 +178,6 @@ def main() -> None:
     parser.add_argument("--delay-ms", type=int, default=7_000)
     parser.add_argument("--fail-rate", type=float, default=0.5)
     args = parser.parse_args()
-    for stream in (sys.stdout, sys.stderr):
-        stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     api = Api(args.api, os.getenv("ADMIN_TOKEN", ""))
     run(api, carrier=args.carrier, minutes=args.hold_minutes, recover_minutes=args.recover_minutes,
         every=args.every, delay_ms=args.delay_ms, fail_rate=args.fail_rate, log=lambda s: print(s, flush=True))
