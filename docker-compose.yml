@@ -34,6 +34,19 @@ services:
     labels:
       com.datadoghq.ad.logs: '[{"source": "python", "service": "shipaudit-api"}]'
 
+  worker:
+    <<: *app
+    # A5: nghe change stream của reconciliations, log JSON + metric khi có chênh lệch mới.
+    command: python -m app.workers.change_stream
+    environment:
+      <<: *app-env
+      DD_SERVICE: shipaudit-worker
+    depends_on:
+      - datadog-agent
+    restart: unless-stopped
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "python", "service": "shipaudit-worker"}]'
+
   ui:
     <<: *app
     command: streamlit run ui/app.py --server.port 8501 --server.address 0.0.0.0
