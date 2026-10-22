@@ -1,0 +1,31 @@
+{
+  "site": "uk1.datadoghq.com",
+  "created_via": "nhập JSON trên giao diện Datadog, 22/10/2026",
+  "monitors": [
+    {
+      "name": "ShipAudit [ops] Độ trễ nạp bảng kê cao: {{carrier.name}}",
+      "id": 72794,
+      "url": "https://uk1.datadoghq.com/monitors/72794"
+    },
+    {
+      "name": "ShipAudit [ops] Tỉ lệ nạp bảng kê lỗi cao",
+      "id": 72795,
+      "url": "https://uk1.datadoghq.com/monitors/72795"
+    },
+    {
+      "name": "ShipAudit [ops] Độ trễ API p95 cao: {{route.name}}",
+      "id": 72796,
+      "url": "https://uk1.datadoghq.com/monitors/72796"
+    },
+    {
+      "name": "ShipAudit [ops] Log lỗi nạp bảng kê",
+      "id": 72797,
+      "url": "https://uk1.datadoghq.com/monitors/72797"
+    }
+  ],
+  "dashboard": {
+    "title": "ShipAudit [ops] Vận hành: nạp bảng kê và API",
+    "id": "yh5-e7m-dd2",
+    "url": "https://uk1.datadoghq.com/dashboard/yh5-e7m-dd2"
+  }
+}
