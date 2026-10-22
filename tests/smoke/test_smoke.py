@@ -53,8 +53,9 @@ def _atlas_db():
 
 
 @pytest.fixture(params=["mongomock", "atlas"])
-def server(request, tmp_path, monkeypatch):
+def server(request, tmp_path, monkeypatch, seed_rules):
     db, cleanup = _mongomock_db() if request.param == "mongomock" else _atlas_db()
+    seed_rules(db)
     from app.deps import get_db
     from app.ingest import faults, pipeline
     from app.main import app

@@ -119,3 +119,20 @@ def test_carrier_from_scope_or_tags(scope, tags, expected):
     from app.api.models import DatadogAlert
 
     assert webhooks.carrier_of(DatadogAlert(alert_id="x", scope=scope, tags=tags)) == expected
+
+
+def test_with_real_claim_service_after_merge(client, db, monkeypatch):
+    """Sau khi ghép với B: claim thật được ghi vào DB, gửi lại cùng alert không nhân đôi."""
+    try:
+        from core.claims import ClaimService  # noqa: F401
+    except ImportError:
+        pytest.skip("chưa có core.claims.ClaimService của B")
+    monkeypatch.setenv("WEBHOOK_SECRET", SECRET)
+    db.reconciliations.insert_many([rec("B-1", 5), rec("B-2", 30), rec("B-3", 70)])
+    body = {"alert_id": "real-1", "alert_transition": "Triggered", "scope": "carrier:carrier_b"}
+    first, second = post(client, body).json(), post(client, body).json()
+    assert first["stub"] is False and first["count"] == 2 and second["count"] == 2
+    assert db.claims.count_documents({}) == 2
+    claim = db.claims.find_one({"reconciliation_id": "STM-B-1:B-1"})
+    assert claim["status"] == "DRAFT" and claim["source"] == "datadog_webhook" and claim["alert_id"] == "real-1"
+    assert claim["amount"] == 5_000

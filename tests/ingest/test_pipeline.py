@@ -31,8 +31,10 @@ class Clock:
 
 
 @pytest.fixture
-def db():
-    return mongomock.MongoClient(tz_aware=True).db
+def db(seed_rules):
+    d = mongomock.MongoClient(tz_aware=True).db
+    seed_rules(d)
+    return d
 
 
 @pytest.fixture

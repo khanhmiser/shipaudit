@@ -32,7 +32,9 @@ if not getattr(mongomock.collection.BulkOperationBuilder.add_update, "_shipaudit
 
 @pytest.fixture
 def db():
-    return mongomock.MongoClient(tz_aware=True).db
+    d = mongomock.MongoClient(tz_aware=True).db
+    _seed_rules(d)
+    return d
 
 
 @pytest.fixture
@@ -57,3 +59,18 @@ def upload(client):
         return client.post("/statements", data={"carrier": carrier, **form},
                            files={"file": (f"statement_{carrier}.csv", raw, "text/csv")})
     return _upload
+
+
+def _seed_rules(db) -> None:
+    """Nạp quy tắc hãng của B vào DB test khi đã có (đối soát thật cần carrier_rules); B chưa ghép thì thôi."""
+    try:
+        from core.rules import upsert_rules
+        from generator.carriers.params import carrier_rule_documents
+    except ImportError:
+        return
+    upsert_rules(db, carrier_rule_documents())
+
+
+@pytest.fixture
+def seed_rules():
+    return _seed_rules
