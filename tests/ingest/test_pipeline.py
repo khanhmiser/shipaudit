@@ -188,3 +188,15 @@ def test_statement_lines_unique_index(db):
     pipeline.ensure_storage(db)
     idx = db[Collections.STATEMENT_LINES].index_information()[pipeline.STATEMENT_LINES_INDEX]
     assert idx["unique"] and idx["key"] == [("statement_id", 1), ("order_code", 1)]
+
+
+def test_each_run_counted_and_failure_logged_as_error(run, caplog):
+    counts = []
+    with caplog.at_level("INFO", logger="shipaudit.ingest"):
+        run(count=lambda n, v=1, t=None: counts.append((n, v, t)))
+        run(faults=Faults(fail_rate=1.0), rng=random.Random(1), count=lambda n, v=1, t=None: counts.append((n, v, t)))
+    assert [(n, t["status"]) for n, _, t in counts] == [("shipaudit.ops.ingest_runs", OK),
+                                                       ("shipaudit.ops.ingest_runs", ERROR)]
+    done = [r for r in caplog.records if r.name == "shipaudit.ingest" and r.getMessage().startswith("nạp bảng kê")]
+    assert [r.levelname for r in done] == ["INFO", "ERROR"]
+    assert done[-1].error_kind == "fault"

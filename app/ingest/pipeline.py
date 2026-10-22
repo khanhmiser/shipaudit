@@ -29,7 +29,7 @@ from pymongo import ASCENDING, UpdateOne
 from pymongo.errors import OperationFailure
 
 from app.ingest.parsers import StatementFormatError, get_parser
-from app.telemetry.metrics import metric
+from app.telemetry.metrics import increment, metric
 from common.enums import Collections
 from contracts.interfaces import ReconcileFn, stub_reconcile_statement
 
@@ -198,6 +198,7 @@ def ingest(
     sleep: Callable[[float], None] = time.sleep,
     rng: random.Random | None = None,
     emit: Callable[..., None] = metric,
+    count: Callable[..., None] = increment,
 ) -> IngestResult:
     parser = get_parser(carrier)  # ValueError nếu mã hãng lạ: lỗi của người gọi, không ghi ingest_events
     received_at = received_at or now()
@@ -246,9 +247,11 @@ def ingest(
     emit("shipaudit.ops.ingest_duration_ms", result.duration_ms, tags)
     emit("shipaudit.ops.statement_rows", result.rows, tags)
     emit("shipaudit.ops.ingest_errors", result.skipped + (1 if result.status == ERROR else 0), tags)
-    log.info("nạp bảng kê xong", extra={
+    count("shipaudit.ops.ingest_runs", 1, tags)  # tỉ lệ lỗi = runs{status:error} / runs
+    level = logging.ERROR if result.status == ERROR else logging.INFO
+    log.log(level, "nạp bảng kê thất bại" if result.status == ERROR else "nạp bảng kê xong", extra={
         "statement_id": statement_id, "carrier": carrier, "status": result.status, "rows": result.rows,
         "skipped": result.skipped, "duration_ms": result.duration_ms, "lag_seconds": result.lag_seconds,
-        "stub": result.stub,
+        "stub": result.stub, "error_kind": result.error_kind, "error": result.error,
     })
     return result
