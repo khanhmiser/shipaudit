@@ -54,6 +54,11 @@
     "ingested_at": {
       "type": "string",
       "format": "date-time"
+    },
+    "paid_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Ngày hãng chuyển tiền của dòng (tùy chọn). Hãng không có cột riêng cho phí bảo hiểm hoặc phí hoàn (phí gộp vào shipping_fee) thì bỏ khóa insurance_fee / return_shipping_fee"
     }
   },
   "required": [
