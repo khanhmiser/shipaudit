@@ -1,0 +1,66 @@
+[
+  {
+    "name": "ShipAudit [ops] Độ trễ nạp bảng kê cao: {{carrier.name}}",
+    "type": "query alert",
+    "query": "max(last_5m):max:shipaudit.ops.ingest_lag_seconds{*} by {carrier} > 5",
+    "message": "{{#is_alert}}Nạp bảng kê của {{carrier.name}} mất {{value}} giây từ lúc nhận file tới lúc ghi xong (ngưỡng {{threshold}} giây).{{/is_alert}}\n{{#is_warning}}Nạp bảng kê của {{carrier.name}} chậm: {{value}} giây (mức cảnh báo {{warn_threshold}} giây).{{/is_warning}}\n{{#is_recovery}}Độ trễ nạp bảng kê của {{carrier.name}} đã về bình thường.{{/is_recovery}}\n\nĐiều tra: xem log `service:shipaudit-api @logger:shipaudit.ingest` (có statement_id, duration_ms, lag_seconds), độ trễ API p95 của /statements, và công tắc lỗi nạp (GET /admin/ingest-fault, metric shipaudit.ops.fault_delay_ms). Bảng kê nạp chậm thì chênh lệch phát hiện chậm, thời gian còn lại để khiếu nại bị rút ngắn.\n$NOTIFY",
+    "tags": ["project:shipaudit", "layer:ops", "service:shipaudit-api"],
+    "priority": 2,
+    "options": {
+      "thresholds": {"critical": 5, "warning": 2},
+      "notify_no_data": false,
+      "require_full_window": false,
+      "include_tags": true,
+      "new_group_delay": 0,
+      "renotify_interval": 0,
+      "notify_audit": false
+    }
+  },
+  {
+    "name": "ShipAudit [ops] Tỉ lệ nạp bảng kê lỗi cao",
+    "type": "query alert",
+    "query": "sum(last_10m):default_zero(sum:shipaudit.ops.ingest_runs{status:error}.as_count()) / sum:shipaudit.ops.ingest_runs{*}.as_count() > 0.3",
+    "message": "{{#is_alert}}{{value}} số lượt nạp bảng kê trong 10 phút qua bị lỗi (ngưỡng {{threshold}}).{{/is_alert}}\n{{#is_warning}}Tỉ lệ nạp lỗi {{value}}, đã chạm mức cảnh báo {{warn_threshold}}.{{/is_warning}}\n{{#is_recovery}}Tỉ lệ nạp bảng kê lỗi đã về bình thường.{{/is_recovery}}\n\nĐiều tra: log mức ERROR `service:shipaudit-api @logger:shipaudit.ingest` ghi error_kind (format: sai định dạng file, fault: lỗi giả do công tắc, reconcile: lỗi đối soát hoặc ghi). Kiểm tra công tắc lỗi nạp (fail_rate) và collection ingest_events.\n$NOTIFY",
+    "tags": ["project:shipaudit", "layer:ops", "service:shipaudit-api"],
+    "priority": 2,
+    "options": {
+      "thresholds": {"critical": 0.3, "warning": 0.1},
+      "notify_no_data": false,
+      "require_full_window": false,
+      "include_tags": true,
+      "renotify_interval": 0,
+      "notify_audit": false
+    }
+  },
+  {
+    "name": "ShipAudit [ops] Độ trễ API p95 cao: {{route.name}}",
+    "type": "query alert",
+    "query": "max(last_5m):max:shipaudit.ops.api_latency_ms.p95{route:/statements} by {route} > 3000",
+    "message": "{{#is_alert}}p95 thời gian xử lý {{route.name}} là {{value}} ms (ngưỡng {{threshold}} ms).{{/is_alert}}\n{{#is_warning}}p95 thời gian xử lý {{route.name}} là {{value}} ms (mức cảnh báo {{warn_threshold}} ms).{{/is_warning}}\n{{#is_recovery}}Độ trễ {{route.name}} đã về bình thường.{{/is_recovery}}\n\np95 tính trong mỗi 10 giây bởi middleware của API (shipaudit.ops.api_latency_ms). Khi có Datadog Agent, xem thêm trace của service shipaudit-api trong APM.\n$NOTIFY",
+    "tags": ["project:shipaudit", "layer:ops", "service:shipaudit-api"],
+    "priority": 3,
+    "options": {
+      "thresholds": {"critical": 3000, "warning": 1500},
+      "notify_no_data": false,
+      "require_full_window": false,
+      "include_tags": true,
+      "renotify_interval": 0,
+      "notify_audit": false
+    }
+  },
+  {
+    "name": "ShipAudit [ops] Log lỗi nạp bảng kê",
+    "type": "log alert",
+    "query": "logs(\"service:shipaudit-api status:error @logger:shipaudit.ingest\").index(\"*\").rollup(\"count\").last(\"5m\") > 3",
+    "message": "{{#is_alert}}Có {{value}} dòng log lỗi nạp bảng kê trong 5 phút (ngưỡng {{threshold}}).{{/is_alert}}\n{{#is_warning}}Có {{value}} dòng log lỗi nạp bảng kê trong 5 phút.{{/is_warning}}\n{{#is_recovery}}Không còn log lỗi nạp bảng kê.{{/is_recovery}}\n\nMở Log Explorer với truy vấn trên, nhóm theo @error_kind và @carrier để biết lỗi do file, do công tắc lỗi hay do đối soát.\n$NOTIFY",
+    "tags": ["project:shipaudit", "layer:ops", "service:shipaudit-api"],
+    "priority": 3,
+    "options": {
+      "thresholds": {"critical": 3, "warning": 1},
+      "notify_no_data": false,
+      "enable_logs_sample": true,
+      "renotify_interval": 0,
+      "notify_audit": false
+    }
+  }
+]

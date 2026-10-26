@@ -1,0 +1,7 @@
+{
+  "name": "shipaudit-claims",
+  "url": "$SHIPAUDIT_PUBLIC_URL/webhooks/datadog",
+  "encode_as": "json",
+  "custom_headers": "{\"X-ShipAudit-Secret\": \"$WEBHOOK_SECRET\"}",
+  "payload": "{\"alert_id\": \"$ALERT_CYCLE_KEY\", \"alert_transition\": \"$ALERT_TRANSITION\", \"monitor_id\": \"$ALERT_ID\", \"title\": \"$EVENT_TITLE\", \"scope\": \"$ALERT_SCOPE\", \"tags\": \"$TAGS\", \"within_hours\": 48}"
+}

@@ -6,7 +6,12 @@ from app.ingest.parsers.base import StatementParser
 
 class CarrierBParser(StatementParser):
     carrier = "carrier_b"
-
-    def parse(self, raw: bytes, statement_id: str) -> list[dict]:
-        # TODO(A): đọc CSV, chuẩn hóa về schema statement_lines.
-        raise NotImplementedError
+    delimiter = ";"
+    columns = {
+        "ma_don": "order_code",
+        "thu_ho": "cod_collected",
+        "cuoc_van_chuyen": "shipping_fee",
+        "phi_hoan": "return_shipping_fee",
+        "phi_luu_kho": "storage_fee",
+        "thuc_tra": "net_paid",
+    }
