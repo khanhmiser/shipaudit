@@ -1,0 +1,16 @@
+# [A] Không đưa vào ảnh: bí mật, môi trường ảo, dữ liệu sinh ra, tài liệu nặng.
+.env
+.env.*
+!.env.example
+.git
+.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.codebase-memory
+data/uploads/*
+data/raw/*
+generator/out/*
+docs/word
+**/*.docx
+**/*.png

@@ -73,7 +73,20 @@ JSON nằm ở `datadog/ops/` và `datadog/biz/`; tạo hoặc cập nhật bằ
 
 ### Docker
 
-`docker compose up --build` chạy api, worker, ui và datadog-agent (Agent nhận trace, log và DogStatsD).
+`docker compose up --build` (hoặc `make up`) chạy 5 container dùng chung một ảnh `app/Dockerfile`:
+
+| Service | Việc | Cổng |
+|---|---|---|
+| api | FastAPI: nạp bảng kê, xem đối soát, webhook Datadog | 8000 |
+| worker | change stream của `reconciliations` | |
+| metrics-job | phát `shipaudit.biz.*` mỗi 60 giây (B9) | |
+| ui | Streamlit | 8501 |
+| datadog-agent | nhận trace (APM), log container, DogStatsD | 8125/udp, 8126 |
+
+Cần `.env` có `MONGO_URI`, `MONGO_DB`, `DD_API_KEY` (site `uk1.datadoghq.com`). Có Agent nên compose tắt chế độ agentless
+(`DD_METRICS_AGENTLESS=false`, `DD_LOGS_AGENTLESS=false`): metric, log và trace đều đi qua Agent, log nối được với trace
+nhờ `DD_LOGS_INJECTION`. Trên Windows cần bật Docker Desktop trước. Kiểm tra cú pháp không cần bật Docker:
+`docker compose config --services`.
 
 ## Cấu trúc
 
