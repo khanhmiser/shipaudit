@@ -1,0 +1,53 @@
+[
+  {
+    "name": "ShipAudit [biz] Chênh lệch nhận thiếu vượt ngưỡng: {{carrier.name}}",
+    "type": "query alert",
+    "query": "max(last_5m):sum:shipaudit.biz.diff_amount{!deadline:expired} by {carrier} > 15000000",
+    "message": "{{#is_alert}}Tiền doanh nghiệp nhận thiếu (còn trong hạn khiếu nại, chưa xử lý) của {{carrier.name}} là {{value}} VNĐ, vượt ngưỡng {{threshold}} VNĐ.{{/is_alert}}\n{{#is_warning}}Tiền doanh nghiệp nhận thiếu của {{carrier.name}} là {{value}} VNĐ, đã chạm mức cảnh báo {{warn_threshold}} VNĐ.{{/is_warning}}\n{{#is_recovery}}Tiền nhận thiếu của {{carrier.name}} đã về dưới ngưỡng.{{/is_recovery}}\n\nViệc cần làm: mở màn Chênh lệch, lọc hãng {{carrier.name}}, xem các đơn lệch theo loại (FEE_MISMATCH, RETURN_FEE_DOUBLE, MISSING_IN_STATEMENT, COD_MISMATCH) và lập claim nháp. Con người duyệt claim trước khi gửi hãng.\nXem: $UI_URL/chenh-lech\n\nNgưỡng là kịch bản giả định cho bản demo, dữ liệu tổng hợp. Sửa ngưỡng trong datadog/biz/monitors.json rồi chạy lại apply.py.\n$NOTIFY",
+    "tags": ["project:shipaudit", "layer:biz", "service:shipaudit-biz"],
+    "priority": 2,
+    "options": {
+      "thresholds": {"critical": 15000000, "warning": 10000000},
+      "notify_no_data": false,
+      "require_full_window": false,
+      "include_tags": true,
+      "new_group_delay": 0,
+      "renotify_interval": 0,
+      "notify_audit": false
+    }
+  },
+  {
+    "name": "ShipAudit [biz] Sắp hết hạn khiếu nại: {{carrier.name}}",
+    "type": "query alert",
+    "query": "min(last_5m):min:shipaudit.biz.claim_hours_left{*} by {carrier} < 24",
+    "message": "{{#is_alert}}Khoản chênh lệch gần hạn nhất của {{carrier.name}} chỉ còn {{value}} giờ để khiếu nại (dưới {{threshold}} giờ).{{/is_alert}}\n{{#is_warning}}Khoản chênh lệch gần hạn nhất của {{carrier.name}} còn {{value}} giờ để khiếu nại (dưới {{warn_threshold}} giờ).{{/is_warning}}\n{{#is_recovery}}{{carrier.name}} không còn khoản chênh lệch nào sát hạn khiếu nại.{{/is_recovery}}\n\nKhi cảnh báo, webhook gọi POST /webhooks/datadog để tạo claim nháp cho các khoản sắp hết hạn của {{carrier.name}} (idempotent theo mã alert). Con người duyệt claim trước khi gửi hãng.\nXem: $UI_URL/han-khieu-nai\n\nMốc 24 giờ và 48 giờ trùng với mức khẩn trên giao diện (Nghiêm trọng, Cao).\n$NOTIFY",
+    "tags": ["project:shipaudit", "layer:biz", "service:shipaudit-biz"],
+    "priority": 1,
+    "options": {
+      "thresholds": {"critical": 24, "warning": 48},
+      "notify_no_data": false,
+      "require_full_window": false,
+      "include_tags": true,
+      "new_group_delay": 0,
+      "renotify_interval": 0,
+      "notify_audit": false
+    }
+  },
+  {
+    "name": "ShipAudit [biz] Chênh lệch tăng bất thường (Anomaly Detection): {{carrier.name}}",
+    "type": "query alert",
+    "query": "avg(last_1h):anomalies(sum:shipaudit.biz.diff_amount{!deadline:expired} by {carrier}, 'basic', 2, direction='above', interval=60, alert_window='last_5m', count_default_zero='true') >= 1",
+    "message": "{{#is_alert}}Tiền nhận thiếu của {{carrier.name}} tăng vượt dải bình thường mà Datadog học được (Anomaly Detection, thuật toán basic, độ rộng 2).{{/is_alert}}\n{{#is_recovery}}Tiền nhận thiếu của {{carrier.name}} đã trở lại trong dải bình thường.{{/is_recovery}}\n\nThường gặp khi vừa nạp một bảng kê có nhiều đơn bị trừ lệch. Mở màn Chênh lệch, so bảng kê mới với các kỳ trước của {{carrier.name}}.\nXem: $UI_URL/chenh-lech\n$NOTIFY",
+    "tags": ["project:shipaudit", "layer:biz", "service:shipaudit-biz"],
+    "priority": 3,
+    "options": {
+      "thresholds": {"critical": 1, "critical_recovery": 0},
+      "threshold_windows": {"trigger_window": "last_5m", "recovery_window": "last_5m"},
+      "notify_no_data": false,
+      "require_full_window": false,
+      "include_tags": true,
+      "renotify_interval": 0,
+      "notify_audit": false
+    }
+  }
+]

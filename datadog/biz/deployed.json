@@ -1,0 +1,26 @@
+{
+  "site": "uk1.datadoghq.com",
+  "created_via": "nhập JSON trên giao diện Datadog, 22/10/2026",
+  "monitors": [
+    {
+      "name": "ShipAudit [biz] Chênh lệch nhận thiếu vượt ngưỡng: {{carrier.name}}",
+      "id": 72687,
+      "url": "https://uk1.datadoghq.com/monitors/72687"
+    },
+    {
+      "name": "ShipAudit [biz] Sắp hết hạn khiếu nại: {{carrier.name}}",
+      "id": 72690,
+      "url": "https://uk1.datadoghq.com/monitors/72690"
+    },
+    {
+      "name": "ShipAudit [biz] Chênh lệch tăng bất thường (Anomaly Detection): {{carrier.name}}",
+      "id": 72691,
+      "url": "https://uk1.datadoghq.com/monitors/72691"
+    }
+  ],
+  "dashboard": {
+    "title": "ShipAudit [biz] Đối soát cước: chênh lệch và hạn khiếu nại",
+    "id": "3ti-98m-p8s",
+    "url": "https://uk1.datadoghq.com/dashboard/3ti-98m-p8s"
+  }
+}

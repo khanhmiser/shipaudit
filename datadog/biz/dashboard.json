@@ -1,0 +1,215 @@
+{
+  "title": "ShipAudit [biz] Đối soát cước: chênh lệch và hạn khiếu nại",
+  "description": "Lớp nghiệp vụ của ShipAudit. Metric shipaudit.biz.* do core/metrics_job.py phát mỗi 60 giây từ MongoDB. Dữ liệu tổng hợp, hãng giả Carrier A/B/C; ngưỡng là kịch bản giả định. Tạo lại bằng: python datadog/biz/apply.py",
+  "layout_type": "ordered",
+  "reflow_type": "fixed",
+  "template_variables": [
+    {"name": "carrier", "prefix": "carrier", "available_values": [], "default": "*"},
+    {"name": "env", "prefix": "env", "available_values": [], "default": "*"}
+  ],
+  "widgets": [
+    {
+      "definition": {
+        "type": "group",
+        "title": "Chênh lệch còn phải xử lý",
+        "layout_type": "ordered",
+        "background_color": "vivid_blue",
+        "show_title": true,
+        "widgets": [
+          {
+            "definition": {
+              "type": "query_value",
+              "title": "Tiền nhận thiếu còn trong hạn",
+              "title_size": "16",
+              "title_align": "left",
+              "requests": [{
+                "response_format": "scalar",
+                "queries": [{"data_source": "metrics", "name": "q1", "aggregator": "last",
+                             "query": "sum:shipaudit.biz.diff_amount{!deadline:expired,$carrier,$env}"}],
+                "formulas": [{"formula": "q1", "number_format": {"unit": {"type": "custom_unit_label", "label": "₫"}}}],
+                "conditional_formats": [
+                  {"comparator": ">", "value": 15000000, "palette": "white_on_red"},
+                  {"comparator": ">", "value": 10000000, "palette": "white_on_yellow"},
+                  {"comparator": "<=", "value": 10000000, "palette": "white_on_green"}
+                ]
+              }],
+              "autoscale": true,
+              "precision": 0
+            },
+            "layout": {"x": 0, "y": 0, "width": 3, "height": 2}
+          },
+          {
+            "definition": {
+              "type": "query_value",
+              "title": "Số khoản còn trong hạn",
+              "title_size": "16",
+              "title_align": "left",
+              "requests": [{
+                "response_format": "scalar",
+                "queries": [{"data_source": "metrics", "name": "q1", "aggregator": "last",
+                             "query": "sum:shipaudit.biz.diff_count{!deadline:expired,$carrier,$env}"}],
+                "formulas": [{"formula": "q1", "number_format": {"unit": {"type": "custom_unit_label", "label": "khoản"}}}]
+              }],
+              "autoscale": false,
+              "precision": 0
+            },
+            "layout": {"x": 3, "y": 0, "width": 3, "height": 2}
+          },
+          {
+            "definition": {
+              "type": "query_value",
+              "title": "Giờ còn lại của khoản gần hạn nhất",
+              "title_size": "16",
+              "title_align": "left",
+              "requests": [{
+                "response_format": "scalar",
+                "queries": [{"data_source": "metrics", "name": "q1", "aggregator": "last",
+                             "query": "min:shipaudit.biz.claim_hours_left{$carrier,$env}"}],
+                "formulas": [{"formula": "q1", "number_format": {"unit": {"type": "custom_unit_label", "label": "giờ"}}}],
+                "conditional_formats": [
+                  {"comparator": "<", "value": 24, "palette": "white_on_red"},
+                  {"comparator": "<", "value": 48, "palette": "white_on_yellow"},
+                  {"comparator": ">=", "value": 48, "palette": "white_on_green"}
+                ]
+              }],
+              "autoscale": false,
+              "precision": 1
+            },
+            "layout": {"x": 6, "y": 0, "width": 3, "height": 2}
+          },
+          {
+            "definition": {
+              "type": "query_value",
+              "title": "Chênh lệch đã quá hạn khiếu nại",
+              "title_size": "16",
+              "title_align": "left",
+              "requests": [{
+                "response_format": "scalar",
+                "queries": [{"data_source": "metrics", "name": "q1", "aggregator": "last",
+                             "query": "sum:shipaudit.biz.diff_amount{deadline:expired,$carrier,$env}"}],
+                "formulas": [{"formula": "q1", "number_format": {"unit": {"type": "custom_unit_label", "label": "₫"}}}]
+              }],
+              "autoscale": true,
+              "precision": 0
+            },
+            "layout": {"x": 9, "y": 0, "width": 3, "height": 2}
+          },
+          {
+            "definition": {
+              "type": "timeseries",
+              "title": "Tiền nhận thiếu còn trong hạn theo hãng (dải Anomaly Detection)",
+              "title_size": "16",
+              "title_align": "left",
+              "show_legend": true,
+              "legend_layout": "auto",
+              "legend_columns": ["avg", "max", "value"],
+              "requests": [{
+                "response_format": "timeseries",
+                "queries": [{"data_source": "metrics", "name": "q1",
+                             "query": "sum:shipaudit.biz.diff_amount{!deadline:expired,$carrier,$env} by {carrier}"}],
+                "formulas": [{"formula": "anomalies(q1, 'basic', 2)", "alias": "Tiền nhận thiếu"}],
+                "display_type": "line",
+                "style": {"palette": "dog_classic", "line_type": "solid", "line_width": "normal"}
+              }],
+              "markers": [
+                {"value": "y = 15000000", "display_type": "error dashed", "label": "Ngưỡng đỏ (giả định)"},
+                {"value": "y = 10000000", "display_type": "warning dashed", "label": "Ngưỡng vàng (giả định)"}
+              ]
+            },
+            "layout": {"x": 0, "y": 2, "width": 8, "height": 4}
+          },
+          {
+            "definition": {
+              "type": "toplist",
+              "title": "Giờ còn lại tới hạn khiếu nại, theo hãng",
+              "title_size": "16",
+              "title_align": "left",
+              "requests": [{
+                "response_format": "scalar",
+                "queries": [{"data_source": "metrics", "name": "q1", "aggregator": "last",
+                             "query": "min:shipaudit.biz.claim_hours_left{$carrier,$env} by {carrier}"}],
+                "formulas": [{"formula": "q1", "limit": {"count": 10, "order": "asc"},
+                              "number_format": {"unit": {"type": "custom_unit_label", "label": "giờ"}}}],
+                "conditional_formats": [
+                  {"comparator": "<", "value": 24, "palette": "white_on_red"},
+                  {"comparator": "<", "value": 48, "palette": "white_on_yellow"},
+                  {"comparator": ">=", "value": 48, "palette": "white_on_green"}
+                ]
+              }]
+            },
+            "layout": {"x": 8, "y": 2, "width": 4, "height": 4}
+          },
+          {
+            "definition": {
+              "type": "toplist",
+              "title": "Tiền nhận thiếu còn trong hạn, theo loại chênh lệch",
+              "title_size": "16",
+              "title_align": "left",
+              "requests": [{
+                "response_format": "scalar",
+                "queries": [{"data_source": "metrics", "name": "q1", "aggregator": "last",
+                             "query": "sum:shipaudit.biz.diff_amount{!deadline:expired,$carrier,$env} by {diff_type}"}],
+                "formulas": [{"formula": "q1", "limit": {"count": 10, "order": "desc"},
+                              "number_format": {"unit": {"type": "custom_unit_label", "label": "₫"}}}]
+              }]
+            },
+            "layout": {"x": 0, "y": 6, "width": 4, "height": 4}
+          },
+          {
+            "definition": {
+              "type": "timeseries",
+              "title": "Số khoản còn trong hạn, theo mức hạn",
+              "title_size": "16",
+              "title_align": "left",
+              "show_legend": true,
+              "legend_layout": "auto",
+              "legend_columns": ["value"],
+              "requests": [{
+                "response_format": "timeseries",
+                "queries": [{"data_source": "metrics", "name": "q1",
+                             "query": "sum:shipaudit.biz.diff_count{!deadline:expired,$carrier,$env} by {deadline}"}],
+                "formulas": [{"formula": "q1"}],
+                "display_type": "bars",
+                "style": {"palette": "warm", "line_type": "solid", "line_width": "normal"}
+              }]
+            },
+            "layout": {"x": 4, "y": 6, "width": 4, "height": 4}
+          },
+          {
+            "definition": {
+              "type": "manage_status",
+              "title": "Monitor nghiệp vụ",
+              "title_size": "16",
+              "title_align": "left",
+              "query": "tag:(layer:biz) tag:(project:shipaudit)",
+              "summary_type": "combined",
+              "display_format": "countsAndList",
+              "color_preference": "text",
+              "hide_zero_counts": true,
+              "show_last_triggered": true,
+              "show_priority": true,
+              "sort": "status,asc",
+              "count": 50,
+              "start": 0
+            },
+            "layout": {"x": 8, "y": 6, "width": 4, "height": 4}
+          }
+        ]
+      },
+      "layout": {"x": 0, "y": 0, "width": 12, "height": 11}
+    },
+    {
+      "definition": {
+        "type": "note",
+        "content": "**Cách đọc.** Chênh lệch = số tiền phải nhận − số tiền thực nhận; chỉ tính khoản doanh nghiệp nhận thiếu chưa xử lý xong (chưa có claim, hoặc claim còn nháp / đã duyệt). Tag `deadline`: `lt24h`, `lt48h`, `lt96h`, `later` theo giờ còn lại tới hạn khiếu nại; `expired` là đã quá hạn. `claim_hours_left` chặn trên 168 giờ: 168 nghĩa là không còn khoản nào cần gấp. Các hãng được so bằng cùng một thước đo, không xếp hạng hãng. Dữ liệu tổng hợp, hãng giả Carrier A/B/C; ngưỡng 10 và 15 triệu VNĐ là kịch bản giả định.",
+        "background_color": "gray",
+        "font_size": "14",
+        "text_align": "left",
+        "vertical_align": "center",
+        "show_tick": false,
+        "has_padding": true
+      },
+      "layout": {"x": 0, "y": 11, "width": 12, "height": 2}
+    }
+  ]
+}
