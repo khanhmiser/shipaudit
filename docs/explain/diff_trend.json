@@ -1,0 +1,422 @@
+{
+ "explainVersion": "2",
+ "stages": [
+  {
+   "$cursor": {
+    "queryPlanner": {
+     "namespace": "shipaudit_b_dev.reconciliations",
+     "parsedQuery": {
+      "$and": [
+       {
+        "carrier": {
+         "$eq": "carrier_b"
+        }
+       },
+       {
+        "diff_type": {
+         "$not": {
+          "$eq": "NONE"
+         }
+        }
+       },
+       {
+        "delivered_at": {
+         "$type": [
+          9
+         ]
+        }
+       }
+      ]
+     },
+     "indexFilterSet": false,
+     "queryHash": "05DE4B88",
+     "planCacheShapeHash": "05DE4B88",
+     "planCacheKey": "9809C6D3",
+     "optimizationTimeMillis": 1,
+     "maxIndexedOrSolutionsReached": false,
+     "maxIndexedAndSolutionsReached": false,
+     "maxScansToExplodeReached": false,
+     "prunedSimilarIndexes": false,
+     "winningPlan": {
+      "isCached": false,
+      "queryPlan": {
+       "stage": "GROUP",
+       "planNodeId": 4,
+       "inputStage": {
+        "stage": "FETCH",
+        "planNodeId": 2,
+        "filter": {
+         "delivered_at": {
+          "$type": [
+           9
+          ]
+         }
+        },
+        "inputStage": {
+         "stage": "IXSCAN",
+         "planNodeId": 1,
+         "keyPattern": {
+          "carrier": 1,
+          "period": 1,
+          "diff_type": 1
+         },
+         "indexName": "carrier_period_diff_type",
+         "isMultiKey": false,
+         "multiKeyPaths": {
+          "carrier": [],
+          "period": [],
+          "diff_type": []
+         },
+         "isUnique": false,
+         "isSparse": false,
+         "isPartial": false,
+         "indexVersion": 2,
+         "direction": "forward",
+         "indexBounds": {
+          "carrier": [
+           "[\"carrier_b\", \"carrier_b\"]"
+          ],
+          "period": [
+           "[MinKey, MaxKey]"
+          ],
+          "diff_type": [
+           "[MinKey, \"NONE\")",
+           "(\"NONE\", MaxKey]"
+          ]
+         }
+        }
+       }
+      },
+      "slotBasedPlan": {
+       "slots": "$$RESULT=s20 env: { s5 = {\"carrier\" : 1, \"period\" : 1, \"diff_type\" : 1}, s11 = TimeZoneDatabase(America/Denver...Etc/GMT-2) (timeZoneDB) }",
+       "stages": "[4] project [s20 = newObj(\"_id\", s17, \"diff_count\", s18, \"diff_amount\", s19)] \n[4] project [s17 = newObj(\"carrier\", s8, \"day\", s14), s18 = (convert ( s15, int32) ?: s15), s19 = doubleDoubleSumFinalize(s16)] \n[4] group [s8, s14] [s15 = count(), s16 = aggDoubleDoubleSum(s10)] spillSlots[s12, s13] mergingExprs[sum(s12), aggMergeDoubleDoubleSums(s13)] \n[4] project [s14 = \n    let [\n        l10.0 = dateTrunc(s11, s9, \"day\", 1ll, \"+07:00\", \"sun\") \n    ] \n    in \n        if exists(l10.0) \n        then makeOwn(move(l10.0)) \n        else \n            if (typeMatch(s9, 1088) ?: true) \n            then null \n            else \n                if typeMatch(s9, 131712) \n                then Nothing \n                else fail(7157932, \"$dateTrunc parameter 'date' must be coercible to date\") \n] \n[2] filter {traverseF(s9, lambda(l2.0) { (typeMatch(move(l2.0), 512) ?: false) }, false)} \n[2] nlj inner [] [s1, s2, s3, s4, s5] \n    left \n        [1] ixscan_generic IndexBounds(\"field #0['carrier']: [CollationKey(0x636172726965725f62), CollationKey(0x636172726965725f62)], field #1['period']: [MinKey, MaxKey], field #2['diff_type']: [Min\"...) s4 s1 s2 s3 lowPriority [] @\"2136fd13-028e-4092-a76e-22221f0b999e\" @\"carrier_period_diff_type\" true \n    right \n        [2] limit 1ll \n        [2] seek s1 s6 s7 s2 s3 s4 s5 none none [s8 = carrier, s9 = delivered_at, s10 = diff] @\"2136fd13-028e-4092-a76e-22221f0b999e\" true false \n"
+      }
+     },
+     "rejectedPlans": [
+      {
+       "isCached": false,
+       "stage": "PROJECTION_SIMPLE",
+       "transformBy": {
+        "carrier": 1,
+        "delivered_at": 1,
+        "diff": 1,
+        "_id": 0
+       },
+       "inputStage": {
+        "stage": "FETCH",
+        "filter": {
+         "carrier": {
+          "$eq": "carrier_b"
+         }
+        },
+        "inputStage": {
+         "stage": "IXSCAN",
+         "keyPattern": {
+          "diff_type": 1,
+          "delivered_at": 1
+         },
+         "indexName": "diff_type_delivered_at",
+         "isMultiKey": false,
+         "multiKeyPaths": {
+          "diff_type": [],
+          "delivered_at": []
+         },
+         "isUnique": false,
+         "isSparse": false,
+         "isPartial": false,
+         "indexVersion": 2,
+         "direction": "forward",
+         "indexBounds": {
+          "diff_type": [
+           "[MinKey, \"NONE\")",
+           "(\"NONE\", MaxKey]"
+          ],
+          "delivered_at": [
+           "[new Date(-9223372036854775808), new Date(9223372036854775807)]"
+          ]
+         }
+        }
+       }
+      }
+     ]
+    },
+    "executionStats": {
+     "executionSuccess": true,
+     "nReturned": 21,
+     "executionTimeMillis": 4,
+     "totalKeysExamined": 341,
+     "totalDocsExamined": 337,
+     "executionStages": {
+      "stage": "project",
+      "planNodeId": 4,
+      "nReturned": 21,
+      "executionTimeMillisEstimate": 0,
+      "opens": 1,
+      "closes": 1,
+      "saveState": 1,
+      "restoreState": 1,
+      "isEOF": 1,
+      "projections": {
+       "20": "newObj(\"_id\", s17, \"diff_count\", s18, \"diff_amount\", s19) "
+      },
+      "inputStage": {
+       "stage": "project",
+       "planNodeId": 4,
+       "nReturned": 21,
+       "executionTimeMillisEstimate": 0,
+       "opens": 1,
+       "closes": 1,
+       "saveState": 1,
+       "restoreState": 1,
+       "isEOF": 1,
+       "projections": {
+        "17": "newObj(\"carrier\", s8, \"day\", s14) ",
+        "18": "(convert ( s15, int32) ?: s15) ",
+        "19": "doubleDoubleSumFinalize(s16) "
+       },
+       "inputStage": {
+        "stage": "group",
+        "planNodeId": 4,
+        "nReturned": 21,
+        "executionTimeMillisEstimate": 0,
+        "opens": 1,
+        "closes": 1,
+        "saveState": 1,
+        "restoreState": 1,
+        "isEOF": 1,
+        "groupBySlots": [
+         8,
+         14
+        ],
+        "expressions": {
+         "15": "count() ",
+         "16": "aggDoubleDoubleSum(s10) ",
+         "initExprs": {
+          "15": null,
+          "16": null
+         }
+        },
+        "mergingExprs": {
+         "12": "sum(s12) ",
+         "13": "aggMergeDoubleDoubleSums(s13) "
+        },
+        "usedDisk": false,
+        "spills": 0,
+        "spilledBytes": 0,
+        "spilledRecords": 0,
+        "spilledDataStorageSize": 0,
+        "inputStage": {
+         "stage": "project",
+         "planNodeId": 4,
+         "nReturned": 337,
+         "executionTimeMillisEstimate": 0,
+         "opens": 1,
+         "closes": 1,
+         "saveState": 1,
+         "restoreState": 1,
+         "isEOF": 1,
+         "projections": {
+          "14": "\n    let [\n        l10.0 = dateTrunc(s11, s9, \"day\", 1ll, \"+07:00\", \"sun\") \n    ] \n    in \n        if exists(l10.0) \n        then makeOwn(move(l10.0)) \n        else \n            if (typeMatch(s9, 1088) ?: true) \n            then null \n            else \n                if typeMatch(s9, 131712) \n                then Nothing \n                else fail(7157932, \"$dateTrunc parameter 'date' must be coercible to date\") \n"
+         },
+         "inputStage": {
+          "stage": "filter",
+          "planNodeId": 2,
+          "nReturned": 337,
+          "executionTimeMillisEstimate": 0,
+          "opens": 1,
+          "closes": 1,
+          "saveState": 1,
+          "restoreState": 1,
+          "isEOF": 1,
+          "numTested": 337,
+          "filter": "traverseF(s9, lambda(l2.0) { (typeMatch(move(l2.0), 512) ?: false) }, false) ",
+          "inputStage": {
+           "stage": "nlj",
+           "planNodeId": 2,
+           "nReturned": 337,
+           "executionTimeMillisEstimate": 0,
+           "opens": 1,
+           "closes": 1,
+           "saveState": 1,
+           "restoreState": 1,
+           "isEOF": 1,
+           "totalDocsExamined": 337,
+           "totalKeysExamined": 341,
+           "collectionScans": 0,
+           "collectionSeeks": 337,
+           "indexScans": 0,
+           "indexSeeks": 1,
+           "indexesUsed": [
+            "carrier_period_diff_type"
+           ],
+           "innerOpens": 337,
+           "innerCloses": 1,
+           "outerProjects": [],
+           "outerCorrelated": [
+            1,
+            2,
+            3,
+            4,
+            5
+           ],
+           "outerStage": {
+            "stage": "ixscan_generic",
+            "planNodeId": 1,
+            "nReturned": 337,
+            "executionTimeMillisEstimate": 0,
+            "opens": 1,
+            "closes": 1,
+            "saveState": 1,
+            "restoreState": 1,
+            "isEOF": 1,
+            "indexName": "carrier_period_diff_type",
+            "keysExamined": 341,
+            "seeks": 4,
+            "numReads": 341,
+            "keyCheckSkipped": 331,
+            "indexKeySlot": 4,
+            "recordIdSlot": 1,
+            "snapshotIdSlot": 2,
+            "indexIdentSlot": 3,
+            "outputSlots": [],
+            "indexKeysToInclude": "00000000000000000000000000000000"
+           },
+           "innerStage": {
+            "stage": "limit",
+            "planNodeId": 2,
+            "nReturned": 337,
+            "executionTimeMillisEstimate": 0,
+            "opens": 337,
+            "closes": 1,
+            "saveState": 1,
+            "restoreState": 1,
+            "isEOF": 1,
+            "limit": 1,
+            "inputStage": {
+             "stage": "seek",
+             "planNodeId": 2,
+             "nReturned": 337,
+             "executionTimeMillisEstimate": 0,
+             "opens": 337,
+             "closes": 1,
+             "saveState": 1,
+             "restoreState": 1,
+             "isEOF": 0,
+             "numReads": 337,
+             "recordSlot": 6,
+             "recordIdSlot": 7,
+             "seekRecordIdSlot": 1,
+             "snapshotIdSlot": 2,
+             "indexIdentSlot": 3,
+             "indexKeySlot": 4,
+             "indexKeyPatternSlot": 5,
+             "scanFieldNames": [
+              "carrier",
+              "delivered_at",
+              "diff"
+             ],
+             "scanFieldSlots": [
+              8,
+              9,
+              10
+             ]
+            }
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "nReturned": 21,
+   "executionTimeMillisEstimate": 0
+  },
+  {
+   "$project": {
+    "diff_count": true,
+    "diff_amount": true,
+    "carrier": "$_id.carrier",
+    "day": "$_id.day",
+    "_id": false
+   },
+   "nReturned": 21,
+   "executionTimeMillisEstimate": 0
+  },
+  {
+   "$sort": {
+    "sortKey": {
+     "carrier": 1,
+     "day": 1
+    }
+   },
+   "totalDataSizeSortedBytesEstimate": 8169,
+   "usedDisk": false,
+   "spills": 0,
+   "spilledDataStorageSize": 0,
+   "nReturned": 21,
+   "executionTimeMillisEstimate": 0
+  },
+  {
+   "$_internalSetWindowFields": {
+    "partitionBy": "$carrier",
+    "sortBy": {
+     "day": 1
+    },
+    "output": {
+     "cumulative_amount": {
+      "$sum": "$diff_amount",
+      "window": {
+       "documents": [
+        "unbounded",
+        "current"
+       ]
+      }
+     },
+     "cumulative_count": {
+      "$sum": "$diff_count",
+      "window": {
+       "documents": [
+        "unbounded",
+        "current"
+       ]
+      }
+     },
+     "amount_7d": {
+      "$sum": "$diff_amount",
+      "window": {
+       "range": [
+        -6,
+        0
+       ],
+       "unit": "day"
+      }
+     },
+     "count_7d": {
+      "$sum": "$diff_count",
+      "window": {
+       "range": [
+        -6,
+        0
+       ],
+       "unit": "day"
+      }
+     }
+    }
+   },
+   "maxFunctionMemoryUsageBytes": {
+    "amount_7d": 328,
+    "cumulative_count": 128,
+    "cumulative_amount": 128,
+    "count_7d": 328
+   },
+   "maxTotalMemoryUsageBytes": 3693,
+   "usedDisk": false,
+   "nReturned": 21,
+   "executionTimeMillisEstimate": 0
+  }
+ ],
+ "queryShapeHash": "9EF59FDB65C5156995EFC1653C31BC5EACD388BBEC02539B1951D502D288D655",
+ "ok": 1.0
+}

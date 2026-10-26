@@ -1,0 +1,571 @@
+{
+ "explainVersion": "1",
+ "stages": [
+  {
+   "$cursor": {
+    "queryPlanner": {
+     "namespace": "shipaudit_b_dev.reconciliations",
+     "parsedQuery": {
+      "$and": [
+       {
+        "carrier": {
+         "$eq": "carrier_b"
+        }
+       },
+       {
+        "claim_deadline_at": {
+         "$lte": {
+          "$date": "2026-10-22T05:00:00Z"
+         }
+        }
+       },
+       {
+        "claim_deadline_at": {
+         "$gt": {
+          "$date": "2026-10-19T05:00:00Z"
+         }
+        }
+       },
+       {
+        "diff": {
+         "$gt": 0
+        }
+       },
+       {
+        "diff_type": {
+         "$not": {
+          "$eq": "NONE"
+         }
+        }
+       }
+      ]
+     },
+     "indexFilterSet": false,
+     "queryHash": "79AE322C",
+     "planCacheShapeHash": "79AE322C",
+     "planCacheKey": "AFEA13C7",
+     "optimizationTimeMillis": 3,
+     "maxIndexedOrSolutionsReached": false,
+     "maxIndexedAndSolutionsReached": false,
+     "maxScansToExplodeReached": false,
+     "prunedSimilarIndexes": false,
+     "winningPlan": {
+      "isCached": false,
+      "stage": "PROJECTION_SIMPLE",
+      "transformBy": {
+       "carrier": 1,
+       "claim_deadline_at": 1,
+       "diff": 1,
+       "diff_type": 1,
+       "order_code": 1,
+       "reconciliation_id": 1,
+       "statement_id": 1,
+       "_id": 0
+      },
+      "inputStage": {
+       "stage": "FETCH",
+       "filter": {
+        "$and": [
+         {
+          "diff_type": {
+           "$not": {
+            "$eq": "NONE"
+           }
+          }
+         },
+         {
+          "carrier": {
+           "$eq": "carrier_b"
+          }
+         }
+        ]
+       },
+       "inputStage": {
+        "stage": "IXSCAN",
+        "keyPattern": {
+         "claim_deadline_at": 1,
+         "diff": 1
+        },
+        "indexName": "claim_deadline_diff",
+        "isMultiKey": false,
+        "multiKeyPaths": {
+         "claim_deadline_at": [],
+         "diff": []
+        },
+        "isUnique": false,
+        "isSparse": false,
+        "isPartial": false,
+        "indexVersion": 2,
+        "direction": "forward",
+        "indexBounds": {
+         "claim_deadline_at": [
+          "(new Date(1792386000000), new Date(1792645200000)]"
+         ],
+         "diff": [
+          "(0, inf.0]"
+         ]
+        }
+       }
+      }
+     },
+     "rejectedPlans": [
+      {
+       "isCached": false,
+       "stage": "PROJECTION_SIMPLE",
+       "transformBy": {
+        "carrier": 1,
+        "claim_deadline_at": 1,
+        "diff": 1,
+        "diff_type": 1,
+        "order_code": 1,
+        "reconciliation_id": 1,
+        "statement_id": 1,
+        "_id": 0
+       },
+       "inputStage": {
+        "stage": "FETCH",
+        "filter": {
+         "$and": [
+          {
+           "claim_deadline_at": {
+            "$lte": {
+             "$date": "2026-10-22T05:00:00Z"
+            }
+           }
+          },
+          {
+           "claim_deadline_at": {
+            "$gt": {
+             "$date": "2026-10-19T05:00:00Z"
+            }
+           }
+          },
+          {
+           "diff": {
+            "$gt": 0
+           }
+          }
+         ]
+        },
+        "inputStage": {
+         "stage": "IXSCAN",
+         "keyPattern": {
+          "carrier": 1,
+          "period": 1,
+          "diff_type": 1
+         },
+         "indexName": "carrier_period_diff_type",
+         "isMultiKey": false,
+         "multiKeyPaths": {
+          "carrier": [],
+          "period": [],
+          "diff_type": []
+         },
+         "isUnique": false,
+         "isSparse": false,
+         "isPartial": false,
+         "indexVersion": 2,
+         "direction": "forward",
+         "indexBounds": {
+          "carrier": [
+           "[\"carrier_b\", \"carrier_b\"]"
+          ],
+          "period": [
+           "[MinKey, MaxKey]"
+          ],
+          "diff_type": [
+           "[MinKey, \"NONE\")",
+           "(\"NONE\", MaxKey]"
+          ]
+         }
+        }
+       }
+      },
+      {
+       "isCached": false,
+       "stage": "PROJECTION_SIMPLE",
+       "transformBy": {
+        "carrier": 1,
+        "claim_deadline_at": 1,
+        "diff": 1,
+        "diff_type": 1,
+        "order_code": 1,
+        "reconciliation_id": 1,
+        "statement_id": 1,
+        "_id": 0
+       },
+       "inputStage": {
+        "stage": "FETCH",
+        "filter": {
+         "$and": [
+          {
+           "carrier": {
+            "$eq": "carrier_b"
+           }
+          },
+          {
+           "claim_deadline_at": {
+            "$lte": {
+             "$date": "2026-10-22T05:00:00Z"
+            }
+           }
+          },
+          {
+           "claim_deadline_at": {
+            "$gt": {
+             "$date": "2026-10-19T05:00:00Z"
+            }
+           }
+          },
+          {
+           "diff": {
+            "$gt": 0
+           }
+          }
+         ]
+        },
+        "inputStage": {
+         "stage": "IXSCAN",
+         "keyPattern": {
+          "diff_type": 1,
+          "delivered_at": 1
+         },
+         "indexName": "diff_type_delivered_at",
+         "isMultiKey": false,
+         "multiKeyPaths": {
+          "diff_type": [],
+          "delivered_at": []
+         },
+         "isUnique": false,
+         "isSparse": false,
+         "isPartial": false,
+         "indexVersion": 2,
+         "direction": "forward",
+         "indexBounds": {
+          "diff_type": [
+           "[MinKey, \"NONE\")",
+           "(\"NONE\", MaxKey]"
+          ],
+          "delivered_at": [
+           "[MinKey, MaxKey]"
+          ]
+         }
+        }
+       }
+      }
+     ]
+    },
+    "executionStats": {
+     "executionSuccess": true,
+     "nReturned": 101,
+     "executionTimeMillis": 20,
+     "totalKeysExamined": 140,
+     "totalDocsExamined": 137,
+     "executionStages": {
+      "isCached": false,
+      "stage": "PROJECTION_SIMPLE",
+      "nReturned": 101,
+      "executionTimeMillisEstimate": 0,
+      "works": 140,
+      "advanced": 101,
+      "needTime": 38,
+      "needYield": 0,
+      "saveState": 4,
+      "restoreState": 4,
+      "isEOF": 1,
+      "transformBy": {
+       "carrier": 1,
+       "claim_deadline_at": 1,
+       "diff": 1,
+       "diff_type": 1,
+       "order_code": 1,
+       "reconciliation_id": 1,
+       "statement_id": 1,
+       "_id": 0
+      },
+      "inputStage": {
+       "stage": "FETCH",
+       "filter": {
+        "$and": [
+         {
+          "diff_type": {
+           "$not": {
+            "$eq": "NONE"
+           }
+          }
+         },
+         {
+          "carrier": {
+           "$eq": "carrier_b"
+          }
+         }
+        ]
+       },
+       "nReturned": 101,
+       "executionTimeMillisEstimate": 0,
+       "works": 140,
+       "advanced": 101,
+       "needTime": 38,
+       "needYield": 0,
+       "saveState": 4,
+       "restoreState": 4,
+       "isEOF": 1,
+       "docsExamined": 137,
+       "alreadyHasObj": 0,
+       "inputStage": {
+        "stage": "IXSCAN",
+        "nReturned": 137,
+        "executionTimeMillisEstimate": 0,
+        "works": 140,
+        "advanced": 137,
+        "needTime": 2,
+        "needYield": 0,
+        "saveState": 4,
+        "restoreState": 4,
+        "isEOF": 1,
+        "keyPattern": {
+         "claim_deadline_at": 1,
+         "diff": 1
+        },
+        "indexName": "claim_deadline_diff",
+        "isMultiKey": false,
+        "multiKeyPaths": {
+         "claim_deadline_at": [],
+         "diff": []
+        },
+        "isUnique": false,
+        "isSparse": false,
+        "isPartial": false,
+        "indexVersion": 2,
+        "direction": "forward",
+        "indexBounds": {
+         "claim_deadline_at": [
+          "(new Date(1792386000000), new Date(1792645200000)]"
+         ],
+         "diff": [
+          "(0, inf.0]"
+         ]
+        },
+        "keysExamined": 140,
+        "seeks": 3,
+        "dupsTested": 0,
+        "dupsDropped": 0
+       }
+      }
+     }
+    }
+   },
+   "nReturned": 101,
+   "executionTimeMillisEstimate": 2
+  },
+  {
+   "$lookup": {
+    "from": "claims",
+    "as": "claims",
+    "localField": "reconciliation_id",
+    "foreignField": "reconciliation_id",
+    "let": {},
+    "pipeline": [
+     {
+      "$project": {
+       "_id": 0,
+       "claim_id": 1,
+       "status": 1
+      }
+     }
+    ]
+   },
+   "totalDocsExamined": 0,
+   "totalKeysExamined": 0,
+   "collectionScans": 0,
+   "indexesUsed": [
+    "reconciliation_status"
+   ],
+   "nReturned": 101,
+   "executionTimeMillisEstimate": 17
+  },
+  {
+   "$match": {
+    "claims.status": {
+     "$not": {
+      "$in": [
+       "RECOVERED",
+       "REJECTED",
+       "SUBMITTED"
+      ]
+     }
+    }
+   },
+   "nReturned": 101,
+   "executionTimeMillisEstimate": 17
+  },
+  {
+   "$set": {
+    "hours_left": {
+     "$round": [
+      {
+       "$divide": [
+        {
+         "$subtract": [
+          "$claim_deadline_at",
+          {
+           "$const": {
+            "$date": "2026-10-19T05:00:00Z"
+           }
+          }
+         ]
+        },
+        {
+         "$const": 3600000
+        }
+       ]
+      },
+      {
+       "$const": 2
+      }
+     ]
+    },
+    "claim": {
+     "$first": [
+      "$claims"
+     ]
+    }
+   },
+   "nReturned": 101,
+   "executionTimeMillisEstimate": 17
+  },
+  {
+   "$project": {
+    "reconciliation_id": true,
+    "statement_id": true,
+    "order_code": true,
+    "carrier": true,
+    "diff_type": true,
+    "diff": true,
+    "claim_deadline_at": true,
+    "hours_left": true,
+    "claim_id": "$claim.claim_id",
+    "claim_status": "$claim.status",
+    "_id": false
+   },
+   "nReturned": 101,
+   "executionTimeMillisEstimate": 17
+  },
+  {
+   "$facet": {
+    "items": [
+     {
+      "$internalFacetTeeConsumer": {},
+      "nReturned": 101,
+      "executionTimeMillisEstimate": 17
+     },
+     {
+      "$sort": {
+       "sortKey": {
+        "claim_deadline_at": 1,
+        "diff": -1
+       },
+       "limit": 200
+      },
+      "totalDataSizeSortedBytesEstimate": 81530,
+      "usedDisk": false,
+      "spills": 0,
+      "spilledDataStorageSize": 0,
+      "nReturned": 101,
+      "executionTimeMillisEstimate": 17
+     }
+    ],
+    "by_carrier": [
+     {
+      "$internalFacetTeeConsumer": {},
+      "nReturned": 101,
+      "executionTimeMillisEstimate": 0
+     },
+     {
+      "$group": {
+       "_id": "$carrier",
+       "count": {
+        "$sum": {
+         "$const": 1
+        }
+       },
+       "amount": {
+        "$sum": "$diff"
+       },
+       "min_hours_left": {
+        "$min": "$hours_left"
+       },
+       "without_claim": {
+        "$sum": {
+         "$cond": [
+          {
+           "$eq": [
+            {
+             "$type": [
+              "$claim_id"
+             ]
+            },
+            {
+             "$const": "missing"
+            }
+           ]
+          },
+          {
+           "$const": 1
+          },
+          {
+           "$const": 0
+          }
+         ]
+        }
+       }
+      },
+      "maxAccumulatorMemoryUsageBytes": {
+       "count": 128,
+       "amount": 128,
+       "min_hours_left": 72,
+       "without_claim": 128
+      },
+      "totalOutputDataSizeBytes": 341,
+      "usedDisk": false,
+      "spills": 0,
+      "spilledDataStorageSize": 0,
+      "numBytesSpilledEstimate": 0,
+      "spilledRecords": 0,
+      "nReturned": 1,
+      "executionTimeMillisEstimate": 0
+     },
+     {
+      "$project": {
+       "count": true,
+       "amount": true,
+       "min_hours_left": true,
+       "without_claim": true,
+       "carrier": "$_id",
+       "_id": false
+      },
+      "nReturned": 1,
+      "executionTimeMillisEstimate": 0
+     },
+     {
+      "$sort": {
+       "sortKey": {
+        "carrier": 1
+       }
+      },
+      "totalDataSizeSortedBytesEstimate": 349,
+      "usedDisk": false,
+      "spills": 0,
+      "spilledDataStorageSize": 0,
+      "nReturned": 1,
+      "executionTimeMillisEstimate": 0
+     }
+    ]
+   },
+   "nReturned": 1,
+   "executionTimeMillisEstimate": 18
+  }
+ ],
+ "queryShapeHash": "95F848198041969AC0E2E0380AEA99D9F7B3A91AEA653A712F070378EAA0CE0E",
+ "ok": 1.0
+}

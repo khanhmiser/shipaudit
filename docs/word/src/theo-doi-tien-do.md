@@ -1,0 +1,117 @@
+---
+title: "Theo dõi tiến độ kỹ thuật"
+author: "ShipAudit · MUGVN Hackathon 2026 · A: IT / platform, B: nghiệp vụ / data"
+date: "Cập nhật 23/10/2026"
+---
+
+# Tình hình nhanh
+
+| Hạng mục | Tình hình |
+|--------------------|--------------------------------------------------------------------------------|
+| Repo | github.com/khanhmiser/shipaudit: nhánh main (khung repo, 92 file) và nhánh docs/plan-branch-convention (chưa có PR) |
+| Contracts | main: v0.1.0. Bản làm việc 0.3.0 trên máy (claim_deadline_anchor, payout_basis, làm tròn và phí hoàn theo vùng, trường tùy chọn của orders, paid_at), chưa tách nhánh `contract/`, cần A xem |
+| Code thật | A2–A10 xong trên 3 nhánh `a/m1`…`a/m3` (B làm thay, 15 commit, chưa push). A1: Dockerfile và compose đã sửa (23/10), chưa chạy Docker. B1–B10 xong trên máy (nhánh `b/m1-rules-and-data`, chưa commit), gồm giao diện đủ 3 màn theo thiết kế. Dữ liệu demo chính: bộ chat_v1 (5.308 đơn, 24 bảng kê) trên Atlas `shipaudit_b_chat_v1`, đối soát khớp 5.281/5.281 dòng đáp án. Thử ghép đầu cuối parser A + engine B trên 24 bảng kê chat_v1: khớp đáp án. 169 test qua (có test trên Atlas) |
+| Mốc kế tiếp | Checkpoint 23/10 (phần chính của B đã xong tới B8), ghép I3 24/10, I4 27/10, đóng băng code 29/10, nộp 30/10 |
+| Cần xếp lại | Mốc ghép I1 (18/10) và I2 (21/10) đã đến hạn. Lịch phần còn lại cần xếp lại |
+
+# Bảng theo dõi
+
+**Trạng thái:** Chưa bắt đầu · Đang làm · Xong · Bị chặn. Cập nhật mỗi tối trước buổi họp. Mục Ghi chú ghi vướng mắc, link PR hoặc điều cần người kia làm.
+
+**Cách đọc bảng này:** trạng thái ngày 21/10 dựa trên những gì có trên GitHub (main chỉ có khung repo, chưa có nhánh a/ hay b/). Việc làm trên máy mà chưa đẩy lên không được tính. "Chưa xác nhận" nghĩa là chưa có bằng chứng, cần hỏi lại. Sửa bảng khi có tiến triển.
+
+## Chuẩn bị chung
+
+| **Mã** | **Việc** | **Hạn** | **Trạng thái** | **Ghi chú** |
+|-------|----------------------------------|--------------|-------------|--------------------------------|
+| **C1** | Chọn người đăng ký Datadog trial (email công việc), mời người kia | 16/10 | Chưa xác nhận | Chưa biết ai đăng ký, đã xong chưa. Cần email công việc |
+| **C2** | Tạo repo + CODEOWNERS + khung thư mục | 16/10 | Đang làm | Repo và khung đã đẩy lên GitHub 16/10. Còn thiếu tên GitHub của A trong CODEOWNERS, mời A vào repo, bật branch protection |
+| **C3** | Viết contracts/ (schema, 3 bảng kê mẫu, interfaces.py) và gửi A | 16/10 | Xong | contracts v0.1.0 đã gửi A và có trong repo |
+| **C4** | Thử tạo Time Series + Change Streams trên gói Atlas đang dùng | 16/10 | Xong | 22/10: gói miễn phí M0 chạy được cả hai (Time Series có TTL, Change Streams nhận được sự kiện insert). Đã tạo `ingest_events` dạng Time Series trên `shipaudit_b_dev` (`core.indexes.ensure_time_series`) |
+
+## A: vận hành / platform
+
+| **Mã** | **Việc** | **Hạn** | **Trạng thái** | **Ghi chú** |
+|-------|----------------------------------|--------------|-------------|--------------------------------|
+| **A1** | Hạ tầng (compose, Atlas, healthcheck) | 17/10 | Xong phần file (chờ A duyệt, chưa chạy) | 22/10, B làm thay, nhánh `a/m1-ingest-skeleton`: healthcheck api, DD_SITE uk1, mount `data/uploads`. 23/10 (worktree `../shipaudit-a`, chưa commit): `app/Dockerfile` chỉ cài phụ thuộc (bản cũ `pip install -e .` sẽ lỗi vì nhiều package cấp gốc), `.dockerignore`, service `metrics-job`, healthcheck ui, tắt agentless khi có Agent, nhãn unified service tagging, README. `docker compose config` hợp lệ; chưa chạy `docker compose up` (người dùng chưa bật Docker), nên APM và liên kết log-trace vẫn chưa thử |
+| **A2** | API FastAPI | 18/10 | Xong (chờ A duyệt) | 22/10, B làm thay, nhánh `a/m2-api-telemetry` (chưa push): POST /statements, GET /reconciliations (lọc hãng, diff_type, giới hạn), GET /health có ping Mongo. Đã gọi thật bằng curl trên Atlas (database thử, đã xóa) |
+| **A3** | Parser 3 định dạng bảng kê | 18/10 | Xong (chờ A duyệt) | 22/10, B làm thay, nhánh `a/m1-ingest-skeleton`: 3 parser đọc đúng từng giá trị của 3 file mẫu; dòng hỏng ghi log và bỏ qua; sai tiêu đề là lỗi cấp file. 12 test |
+| **A4** | Luồng nạp + ingest_events | 19/10 | Xong (chờ A duyệt) | 22/10, B làm thay, nhánh `a/m1-ingest-skeleton`: lưu file, upsert statement_lines (index unique), gọi reconcile_statement (chưa cài thì dùng stub, cờ stub=true), ingest_events Time Series có TTL (dự phòng collection thường). 16 test trên mongomock, chưa chạy trên Atlas |
+| **A5** | Change Streams worker | 22/10 | Xong (chờ A duyệt) | 22/10, B làm thay, nhánh `a/m2-api-telemetry`: `app/workers/change_stream.py`, service `worker` trong compose. Đã thử trên Atlas: đổi diff thì có log JSON kèm trace_id ngay |
+| **A6** | Telemetry (log JSON, ddtrace, metric) | 18/10 (cơ bản), 24/10 (đủ) | Xong (chờ A duyệt) | 22/10, B làm thay: log JSON, ddtrace cho FastAPI, `metric`/`increment` có fallback console. 22/10 tối, nhánh `a/m3-datadog-ops-webhook`: không có Agent thì metric gửi thẳng Metrics API (gom 10 giây), log gửi thẳng Logs API khi `DD_LOGS_AGENTLESS=true`; middleware đo `shipaudit.ops.api_latency_ms` (p95, max) và `api_requests` theo route. 62 test A. Bọc PyMongo vẫn tắt (ddtrace 4.16 lỗi với pymongo 4.19); trace (APM) cần Agent nên chưa thử |
+| **A7** | Công tắc lỗi nạp | 22/10 | Xong (chờ A duyệt) | 22/10, B làm thay: GET/POST /admin/ingest-fault và /reset (delay_ms, fail_rate). Trên Atlas: bật trễ 2 giây thì lag_seconds lên 2,2 |
+| **A8** | Datadog vận hành (dashboard, monitor) | 26/10 | Xong (chờ A duyệt) | 22/10 tối, B làm thay, nhánh `a/m3-datadog-ops-webhook`: `datadog/ops/` gồm dashboard `yh5-e7m-dd2` và 4 monitor 72794 (độ trễ nạp), 72795 (tỉ lệ nạp lỗi), 72796 (p95 POST /statements), 72797 (log lỗi nạp, Log Management), đã kiểm tra hợp lệ và tạo trên Datadog (uk1); `apply.py`, README, `deployed.json`. Thêm count `shipaudit.ops.ingest_runs`, lượt nạp lỗi ghi log ERROR kèm error_kind. 80 test A. Chạy thật 22/10 22:17–22:36 bằng kịch bản A10 (công tắc lỗi trễ 7 giây, lỗi 50%): cả 4 monitor kích hoạt (độ trễ nạp 10,65 giây, p95 /statements 7,8 giây, tỉ lệ lỗi 63%, 12 dòng log ERROR lên Log Management) rồi về OK. Sửa sau lượt chạy: lượt nạp khởi động (tránh báo động giả ở pha bình thường), gauge chỉ gắn tag hãng (monitor hồi phục nhanh), pha khắc phục 11 phút (monitor tỉ lệ lỗi cửa sổ 10 phút). Chạy lại 22:38–22:58 trên database mới: pha bình thường không có báo động, cả 4 monitor chỉ kích hoạt trong pha sự cố. Liên kết log-trace (APM) cần Agent nên chưa có |
+| **A9** | Webhook tạo claim nháp | 27/10 | Xong phần code (chờ A duyệt) | 22/10 tối, B làm thay, nhánh `a/m3-datadog-ops-webhook`: POST /webhooks/datadog kiểm tra header `X-ShipAudit-Secret`, bỏ qua Recovered / No Data; theo `reconciliation_id` hoặc tag `carrier:` thì tạo claim nháp cho khoản nhận thiếu sắp hết hạn (mặc định 48 giờ) qua `ClaimService.create_draft` của B; gửi lại cùng `alert_id` không tạo thêm. Mẫu cấu hình Datadog `datadog/ops/webhook.json` (alert_id = `$ALERT_CYCLE_KEY`). 10 test. Chưa nối Datadog gọi thật: Datadog không gọi được localhost, cần địa chỉ công khai (tunnel hoặc máy chủ) |
+| **A10** | Kịch bản ops + smoke test + README | 28/10 | Xong (chờ A duyệt) | 22/10 tối, B làm thay, nhánh `a/m3-datadog-ops-webhook`: `scenarios/ops/run.py` 3 pha (bình thường → bật công tắc lỗi nạp trễ 7 giây, lỗi 50% → khắc phục) gọi API thật, báo cáo JSON; smoke test chạy uvicorn trên cổng tạm, gọi qua HTTP thật (mongomock và Atlas); README phần chạy không Docker; `.env.example` thêm DD_APP_KEY, DD_*_AGENTLESS. Thử ghép với code B: phát hiện và sửa 2 chỗ (test A cần carrier_rules khi dùng reconcile thật; index `statement_lines` của B đổi sang unique cùng tên với A, tự dọn index cũ). 84 test A (có Atlas), webhook chạy với ClaimService thật |
+
+## B: nghiệp vụ / data
+
+| **Mã** | **Việc** | **Hạn** | **Trạng thái** | **Ghi chú** |
+|-------|----------------------------------|--------------|-------------|--------------------------------|
+| **B1** | Dữ liệu nền (Olist + synthetic) | 17/10 | Xong (chờ duyệt) | 22/10: `generator/synthetic.py`, `olist_loader.py`, `orders.py`, `seed.py`, seed cố định (kiểm bằng sha256). 23/10: dữ liệu demo chính là bộ chat_v1 (`generator/out/chat_v1/`, 100% tổng hợp), nạp bằng `python -m generator.chat_v1 --db shipaudit_b_chat_v1 --reset`: chuyển định dạng, nạp Atlas, đối soát, so với labels.json khớp 5.281/5.281 dòng (đủ 5 loại, sự cố Carrier C W42). Olist chưa tải (giấy phép chưa xác minh) |
+| **B2** | Đặc tả quy tắc 3 hãng vào carrier_rules | 16/10 (đặc tả), 18/10 (khóa) | Xong (chờ duyệt) | 22/10: `generator/carriers/params.py` + `core/rules.py` + `tests/core/test_rules.py`, đã đổ 3 document vào `carrier_rules` trên Atlas (`shipaudit_b_dev`). Nhánh `b/m1-rules-and-data`, chưa commit/PR. Hạn khiếu nại A 168h, B 72h, C 24h |
+| **B3** | Engine compute_expected + golden test | 18/10 | Xong (chờ duyệt) | 22/10: `core/engine.py`, 12 ca golden khớp từng đồng (giao thành công, hoàn hàng, trả hàng, hàng lỗi, thất lạc, đủ phụ phí) |
+| **B4** | reconcile_statement (idempotent) | 21/10 | Xong (chờ duyệt) | 22/10: `core/reconcile.py` + index (`core/indexes.py`). Nạp lại cùng bảng kê không sinh bản ghi trùng (thử trên Atlas). A thay `stub_reconcile_statement` bằng `core.reconcile.reconcile_statement` được |
+| **B5** | Cài chênh lệch + labels.json | 21/10 | Xong (chờ duyệt) | 22/10: `generator/inject.py`, `statements.py`. 9 bảng kê (3 hãng × 3 tuần) đúng định dạng mẫu, 594 chênh lệch đủ 5 loại, `labels.json`. Đối soát bắt đủ 100%, không báo nhầm |
+| **B6** | Aggregation Pipeline + index + explain() | 23/10 | Xong (chờ duyệt) | 22/10: `pipelines/` gồm `diff_by_carrier` (`$facet`), `diff_trend` (`$setWindowFields`), `missing_orders` (`$lookup`), `claims_expiring` (`$lookup` + `$facet`). 13 index trong `core/indexes.py`. `python -m pipelines.explain` ghi `docs/explain/`: mọi truy vấn chính đều IXSCAN, không COLLSCAN. Test trên Atlas, đối chiếu với Python |
+| **B7** | Claims (create_draft, approve) | 23/10 | Xong (chờ duyệt) | 22/10: `core/claims.py` (DRAFT → APPROVED → SUBMITTED → RECOVERED/REJECTED, EXPIRED khi quá hạn). Người duyệt bắt buộc; idempotent theo alert_id (index unique). Thêm `create_drafts_for_carrier` cho webhook của A. 13 test |
+| **B8** | Streamlit | 23/10 | Xong (chờ duyệt) | 22/10: 6 trang đọc Mongo qua `core/queries.py`; thiết kế lại theo `docs/design/`, xong Tổng quan. 23/10: màn Danh sách chênh lệch (tab Tất cả / Sắp hết hạn / Đang khiếu nại / Đã thu hồi, tìm mã đơn, Xuất CSV, thanh theo loại) và màn Chi tiết đơn (`?order=`, đối chiếu từng khoản, vì sao lệch theo quy tắc hãng, dòng thời gian từ dữ liệu thật, nháp khiếu nại tải về, đường đi phục hồi); trang Claims duyệt hàng loạt. Logic thuần ở `ui/cases.py`, `ui/detail.py`. Xem trên dữ liệu chat_v1 bằng Edge headless; 18 test offline + 9 AppTest trên Atlas |
+| **B9** | Datadog nghiệp vụ (metric, dashboard, monitor, Anomaly) | 26/10 | Xong (chờ duyệt) | 22/10: `core/metrics_job.py` phát `shipaudit.biz.diff_amount`, `diff_count` (tag carrier, diff_type, deadline) và `claim_hours_left` mỗi 60 giây từ pipeline `pipelines/open_diffs.py`; gửi thẳng Metrics API v2 bằng DD_API_KEY (`core/metrics_sink.py`), fallback console. `datadog/biz/`: 3 monitor (chênh lệch vượt ngưỡng, sắp hết hạn khiếu nại, Anomaly Detection; đã kiểm tra hợp lệ với Datadog), dashboard JSON, `apply.py` tạo / cập nhật theo tên. 15 test (3 trên Atlas). 22/10 tối: đã tạo trên Datadog (uk1) dashboard `3ti-98m-p8s` và monitor 72687, 72690, 72691 bằng nhập JSON trên giao diện; tạo API key "ShipAudit biz metrics job". API key đã nằm trong `.env`, job đã gửi metric thật lên Datadog từ `shipaudit_b_dev` (20:31). Chạy thử kịch bản trên database nháp: bảng kê Carrier B ghi thiếu thu hộ 150.000đ ở 80 đơn → tiền nhận thiếu còn hạn của B từ 4,7 lên 16,7 triệu (monitor ngưỡng: ALERT); 2 ngày sau còn 21 giờ (monitor hạn: ALERT); webhook giả lập tạo 181 claim nháp (gọi lại không nhân đôi), duyệt và gửi hãng → cả hai về OK. Chạy thật trên Datadog 22/10 20:52–21:30 (database `shipaudit_b_scenario`): monitor chênh lệch vượt ngưỡng (72687), Anomaly Detection (72691) và sắp hết hạn khiếu nại (72690) đều chuyển Alert cho Carrier B, rồi cả ba về OK sau khi 181 claim được duyệt và gửi hãng. |
+| **B10** | Kịch bản biz + test đối chiếu | 28/10 | Xong (chờ duyệt) | 22/10: `scenarios/biz/run.py` 4 pha theo giờ mô phỏng của dữ liệu seed (bình thường → bảng kê Carrier B về muộn, 80 đơn ghi thiếu 150.000đ thu hộ → sát hạn 21 giờ → webhook giả lập tạo claim nháp, người duyệt và gửi hãng); mỗi pha giữ metric 8 phút để monitor Datadog đánh giá; bắt buộc `--reset`; duyệt hàng loạt chỉ khi có `--approve-by`, không thì chờ người duyệt trên giao diện. Ghi `generator/out/scenario/` (bảng kê CSV, báo cáo JSON). Test `tests/pipelines/test_scenario_biz.py` (6 test, Atlas): phát hiện đủ 80/80 COD_MISMATCH, monitor ngưỡng rồi monitor hạn chuyển ALERT, chỉ Carrier B, webhook idempotent, về OK sau khi gửi claim. Golden test và test đối chiếu labels.json đã có từ B3, B5. 143 test qua. Chạy thật trên Datadog 22/10 20:52–21:30 (database `shipaudit_b_scenario`): monitor chênh lệch vượt ngưỡng (72687), Anomaly Detection (72691) và sắp hết hạn khiếu nại (72690) đều chuyển Alert cho Carrier B, rồi cả ba về OK sau khi 181 claim được duyệt và gửi hãng. |
+
+## Các lần ghép và mốc
+
+| **Mã** | **Việc** | **Hạn** | **Trạng thái** | **Ghi chú** |
+|-------|----------------------------------|--------------|-------------|--------------------------------|
+| **I1** | Lát cắt mỏng: nạp 1 bảng kê, thấy chênh lệch trên UI | 18/10 | Chưa đạt | Chưa thấy trên GitHub |
+| **I2** | Engine thật thay stub, chạy 3 hãng | 21/10 | Đạt trên máy (chưa merge) | 23/10: thư mục nháp ghép `app/` của A với code B; nạp 24 bảng kê thô chat_v1 qua parser và luồng nạp của A theo thứ tự tuần, `reconcile_statement` thật: 24/24 OK, 5.241 dòng, đối soát khớp labels.json (0 lệch, cả ca trả muộn theo thời gian thực). Còn merge thật khi A duyệt |
+| **M1** | Checkpoint: hết tính năng chính | 23/10 | Chưa bắt đầu |  |
+| **I3** | Metric ops + biz lên Datadog | 24/10 | Chưa bắt đầu |  |
+| **I4** | Kịch bản hai lớp chạy từ trạng thái sạch | 27/10 | Chưa bắt đầu |  |
+| **M2** | Đóng băng code | 29/10 | Chưa bắt đầu |  |
+| **M3** | Nộp bài | 30/10 | Chưa bắt đầu |  |
+
+## Nhật ký cập nhật
+
+| **Ngày** | **Người** | **Đã làm / thay đổi**                                 | **Đang chặn / cần người kia** |
+|------------|----------|--------------------------------------------------|----------------------------|
+| 15/10 | B | Chốt phân việc A/B và cấu trúc thư mục. Chưa có code. | |
+| 16/10 | B | Đẩy khung repo (92 file, contracts/, CODEOWNERS) lên GitHub. Chốt quy ước nhánh Git. | Thiếu tên GitHub của A |
+| 21/10 | B | Gói ngữ cảnh cho Claude Code (CLAUDE.md, docs/context) và bộ file Word. Rà tình trạng repo. | Cần xếp lại lịch cho phần còn lại |
+| 22/10 | B | Thiết lập môi trường: nối Datadog (site `uk1.datadoghq.com`), tạo cluster MongoDB Atlas miễn phí `Cluster0` và người dùng `shipaudit`, điền `.env` (chưa commit). Tạo thư mục dự án trên máy. | Chưa xác nhận kết nối Atlas từ máy (Compass báo lỗi). Cần tên GitHub của A và mời A vào Datadog, Atlas |
+| 22/10 | B | Kết nối Atlas từ máy thành công (pymongo `ping`, database `shipaudit_b_dev`). Làm B2: tham số Carrier A/B/C, `core/rules.py` đọc quy tắc từ `carrier_rules`, 42 test qua. Tạo nhánh `b/m1-rules-and-data` (chưa commit). | Cần A xem tham số 3 hãng (khớp với parser và bảng kê mẫu) trước khi khóa |
+| 22/10 | B | Làm B1, B3, B4, B5: generator synthetic + Olist, engine + golden test, cài 5 loại chênh lệch + 9 bảng kê + `labels.json`, `reconcile_statement` + index. Seed 6.000 đơn lên Atlas `shipaudit_b_dev`, đối soát khớp 639/639 label. 84 test qua. Chưa commit. | A: parser theo quy ước chuẩn hóa trong `generator/statements.py`; thay stub bằng `core.reconcile.reconcile_statement`. Cần thống nhất vài trường thêm (orders, reconciliations) qua nhánh `contract/` |
+| 22/10 | B | Làm B6, B7 và C4: 4 Aggregation Pipeline + index + explain() (`docs/explain/`), claims, `core/queries.py`. Thử Time Series và Change Streams trên Atlas M0: chạy được. 105 test qua. Chưa commit. | A9: webhook gọi `ClaimService(db).create_draft(...)` hoặc `create_drafts_for_carrier(carrier, "datadog_webhook", alert_id)`. A4: `ingest_events` cần `ts` kiểu date |
+| 22/10 | B | Làm B8: giao diện Streamlit 6 trang đọc Mongo qua `core/queries.py`, đã xem trên trình duyệt với dữ liệu `shipaudit_b_dev`. Đổi thư mục trang từ `ui/pages/` sang `ui/screens/`. Ghi log JSON phía máy chủ cho thao tác chính (xem trang, tạo và duyệt claim). 122 test qua. Chưa commit. | A: service `ui` trong `docker-compose.yml` vẫn chạy `streamlit run ui/app.py` như cũ, không cần sửa |
+| 22/10 | B | Làm B9 (phần code): job metric `shipaudit.biz.*` (`core/metrics_job.py`, `core/metrics_sink.py`, pipeline `pipelines/open_diffs.py`), 3 monitor và dashboard JSON trong `datadog/biz/`, script `apply.py`. 137 test qua. Chưa gửi được metric lên Datadog: `DD_API_KEY` trong `.env` đang trống, chưa có `DD_APP_KEY`. Chưa commit. | A: `.env.example` nên thêm dòng `DD_APP_KEY=`; A9 webhook gọi `create_drafts_for_carrier` theo tag carrier (xem `datadog/biz/README.md`); compose có thể thêm service chạy `python -m core.metrics_job` |
+| 22/10 | B | Làm B10: kịch bản lớp nghiệp vụ `scenarios/biz/run.py` và test; chạy thật trên Datadog với database `shipaudit_b_scenario`. 143 test qua. Chưa commit. | A: Makefile `scenario-biz` cần thêm `--db <tên> --reset`; khi A9 xong, bỏ bước giả lập webhook (Datadog gọi thật) |
+| 22/10 | B | Chốt 4 điểm nghiệp vụ (status_policy, trả trước, kỳ tuần ISO, mốc hạn khiếu nại). Thêm tham số `claim_deadline_anchor` vào quy tắc hãng (`core/rules.py`, `core/reconcile.py`, params, test); mặc định không đổi kết quả. | A: contract đổi (carrier_rules thêm trường tùy chọn `claim_deadline_anchor`, VERSION 0.2.0), cần nhánh `contract/claim-deadline-anchor` và A xem |
+| 22/10 | B (làm thay A) | A6 đủ, A8, A9, A10 trên nhánh `a/m3-datadog-ops-webhook` (9 commit, chưa push): telemetry không cần Agent, dashboard và 4 monitor vận hành tạo trên Datadog, webhook tạo claim nháp, kịch bản vận hành, smoke test, README. Thử ghép A với B trong thư mục nháp: test A qua hết với code B. | A: duyệt nhánh `a/m3-datadog-ops-webhook`; Docker và Datadog Agent (A1) chưa thử; webhook thật cần địa chỉ công khai |
+| 22/10 | B (làm thay A) | Nhánh `a/m1-ingest-skeleton` (worktree `../shipaudit-a`, 3 commit, chưa push): A1 compose + healthcheck + DD_SITE uk1, A3 3 parser, A4 luồng nạp + ingest_events. 33 test qua. | A duyệt 3 commit. Khi ghép: index `statement_lines` của B (`core/indexes.py`, tên `statement_order`, không unique) trùng khóa với index unique của A, cần thống nhất |
+| 22/10 | B (làm thay A) | Nhánh `a/m2-api-telemetry` (tạo từ nhánh 1, 3 commit, chưa push): A2 API, A5 worker change stream, A6 telemetry cơ bản, A7 công tắc lỗi. 54 test qua. Thử thật trên Atlas (database `shipaudit_a_smoke`, đã xóa sau khi thử): Time Series ingest_events tạo được, change stream bắt được sự kiện. Parser của A đọc 9 bảng kê do generator của B sinh, khớp 5.948/5.948 dòng với dữ liệu chuẩn hóa của B. | A duyệt 6 commit. Chưa chạy `docker compose up` (Docker Desktop chưa bật) và chưa có Datadog Agent. ddtrace bọc PyMongo tạm tắt. Khi ghép với B: luồng nạp tự dùng `core.reconcile` thật khi có; thống nhất index statement_lines |
+| 22/10 | B | Thiết kế lại giao diện Streamlit theo bản Claude Design (`docs/design/`, bảng màu AML, dark mặc định): theme `.streamlit/config.toml`, CSS và hàm vẽ thành phần trong `ui/view.py`, điều hướng chia nhóm, logo. Xong màn Tổng quan (4 thẻ KPI, thanh chênh lệch theo hãng, hạn khiếu nại, bảng đơn cần xử lý). 122 test qua. Chưa commit. | Chờ duyệt màn Tổng quan trước khi làm màn Chênh lệch và Chi tiết đơn |
+
+# Việc còn mở
+
+| # | Việc | Ghi chú |
+|-----|-----------------------------------------------|-----------------------------------------------|
+| 1 | Thay `@A-GITHUB-USERNAME` trong `.github/CODEOWNERS` bằng tài khoản GitHub thật của A, và mời A vào repo | Chưa có tên tài khoản của A. Phải làm trước khi bật bắt buộc review từ code owner, nếu không PR vào thư mục của A sẽ kẹt |
+| 2 | Bật branch protection cho `main` (PR + 1 approval) | Chưa biết đã bật chưa |
+| 3 | Merge PR từ nhánh `docs/plan-branch-convention` | Nhánh đã đẩy lên GitHub, chưa mở PR. Chứa file kế hoạch có mục "Quy ước nhánh Git" và bản Times New Roman |
+| 4 | Đăng ký Datadog trial bằng email công việc | Đề bắt buộc email công việc. Trial kích hoạt từ 17/10. Chưa biết ai đăng ký, đã xong chưa |
+| 5 | Thử Time Series và Change Streams trên gói Atlas đang dùng (việc C4) | Gói thấp có thể không hỗ trợ đủ |
+| 6 | Xác minh giấy phép dataset Olist trên Kaggle, ghi vào `docs/reuse-and-data.md` | Chưa xác minh. Có phương án dự phòng 100% tổng hợp |
+| 7 | Chốt tham số Carrier A/B/C (`generator/carriers/params.py`) | Kế hoạch yêu cầu xong trước 18/10: hệ số khối lượng quy đổi, cước theo vùng và mốc kg, phụ phí, phí chuyển khoản, lịch trả COD, hạn khiếu nại (một hãng 24 giờ) |
+| 8 | Cập nhật bảng theo dõi tiến độ (mục 10 file kế hoạch) | Chưa cập nhật từ 15/10 |
+| 9 | Hồ sơ nộp: README, sơ đồ kiến trúc, mô tả sự cố, video demo, slide, khai báo AI và tái sử dụng | Xem 12 mục bài nộp trong `01-` |
+
+# Chỗ tài liệu lệch nhau
+
+(đã biết)
+
+1. **Docs "ShipAudit - Hồ sơ dự án" (ngày 11/10) đã cũ ở phần Giải pháp.** Nó dùng tên collection `contracts`, `shipments`, `invoices`, `findings`, `disputes` và tên metric `billing_error_rate`, `unresolved_variance_vnd`... Bản chốt là 6 collection trong `contracts/schemas/` và namespace `shipaudit.ops.*` / `shipaudit.biz.*`. Docs cũng chưa có phần Mục tiêu. Theo `contracts/` và các file `02-`, `03-` ở đây.
+2. **`README.md` ở gốc repo còn viết quy tắc cũ:** "mỗi người một nhánh feature" và "đổi contract thì sửa cùng PR". Quy ước đã chốt ngày 16/10: nhánh theo mốc và đổi contract qua nhánh `contract/`. Nên sửa README cho khớp (qua PR).
+3. **Bảng "Tình trạng hiện tại" trong file kế hoạch (`05-`) ghi mốc 15/10:** ghi "Code chưa bắt đầu". Đừng coi là tình trạng hiện tại.
+4. **Lịch:** các mốc ghép I1 (18/10) và I2 (21/10) đã đến hạn trong khi repo mới có bộ khung. Cần xếp lại lịch cho phần còn lại (checkpoint 23/10, đóng băng 29/10, nộp 30/10).
+5. `docs/decisions.md` trong repo mới có 2 dòng. `04-quyet-dinh-da-chot.md` ở đây là bản đầy đủ hơn; nên chuyển các dòng cần thiết vào `docs/decisions.md`.
+| 23/10 | B | Nạp bộ dữ liệu chat_v1 lên Atlas (`shipaudit_b_chat_v1`) và cho engine chạy được trên bộ này (`generator/chat_v1.py`, tham số hãng `payout_basis`, phí hoàn theo vùng, làm tròn); khớp 5.281/5.281 dòng đáp án. Đổi quy ước trả muộn (không báo thiếu ở kỳ trước khi đơn đã về ở kỳ sau). Xong B8 (màn Chênh lệch, Chi tiết đơn, duyệt hàng loạt). Làm thay A1 Docker (chưa chạy). Thử ghép đầu cuối A + B: khớp. 169 test qua. Chưa commit. | A: xem contract 0.3.0 (cần nhánh `contract/`), duyệt Dockerfile và compose ở worktree `../shipaudit-a`; parser A bỏ khóa các cột hãng không có (khác bộ chat_v1 ghi 0) nhưng không đổi kết quả |
