@@ -34,7 +34,7 @@ def rec(code, hours, diff=5_000, carrier="carrier_b", diff_type="FEE_MISMATCH"):
 def claims(monkeypatch, db):
     fake = FakeClaims()
     monkeypatch.setenv("WEBHOOK_SECRET", SECRET)
-    monkeypatch.setattr(webhooks, "claim_service", lambda d: (fake, False))
+    monkeypatch.setattr(webhooks, "claim_service", lambda d: fake)
     db.reconciliations.insert_many([
         rec("B-1", 5), rec("B-2", 30), rec("B-3", 70),                 # B-3 ngoài 48 giờ
         rec("B-4", -2),                                                # đã quá hạn
@@ -62,7 +62,7 @@ def test_creates_drafts_for_expiring_diffs_of_carrier(client, claims):
                       "scope": "carrier:carrier_b", "tags": "env:dev,carrier:carrier_b"})
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["action"] == "created" and body["carrier"] == "carrier_b" and body["stub"] is False
+    assert body["action"] == "created" and body["carrier"] == "carrier_b"
     assert [c["reconciliation_id"] for c in body["claims"]] == ["STM-B-1:B-1", "STM-B-1:B-2"]   # gần hạn trước
     assert {k[0] for k in claims.store} == {"cycle-1"}
     assert all(v["source"] == "datadog_webhook" for v in claims.store.values())
@@ -99,15 +99,6 @@ def test_payload_without_target_is_rejected(client, claims):
     assert post(client, {"scope": "carrier:carrier_b"}).status_code == 422          # thiếu alert_id
 
 
-def test_falls_back_to_stub_until_b_claims_exist(db):
-    svc, stub = webhooks.claim_service(db)
-    try:
-        from core.claims import ClaimService  # noqa: F401
-        assert stub is False
-    except ImportError:
-        assert stub is True and svc.create_draft("x", "datadog_webhook", "a")["status"] == "DRAFT"
-
-
 @pytest.mark.parametrize("scope,tags,expected", [
     ("carrier:carrier_c", None, "carrier_c"),
     ("env:dev,carrier:carrier_a", None, "carrier_a"),
@@ -123,15 +114,11 @@ def test_carrier_from_scope_or_tags(scope, tags, expected):
 
 def test_with_real_claim_service_after_merge(client, db, monkeypatch):
     """Sau khi ghép với B: claim thật được ghi vào DB, gửi lại cùng alert không nhân đôi."""
-    try:
-        from core.claims import ClaimService  # noqa: F401
-    except ImportError:
-        pytest.skip("chưa có core.claims.ClaimService của B")
     monkeypatch.setenv("WEBHOOK_SECRET", SECRET)
     db.reconciliations.insert_many([rec("B-1", 5), rec("B-2", 30), rec("B-3", 70)])
     body = {"alert_id": "real-1", "alert_transition": "Triggered", "scope": "carrier:carrier_b"}
     first, second = post(client, body).json(), post(client, body).json()
-    assert first["stub"] is False and first["count"] == 2 and second["count"] == 2
+    assert first["count"] == 2 and second["count"] == 2
     assert db.claims.count_documents({}) == 2
     claim = db.claims.find_one({"reconciliation_id": "STM-B-1:B-1"})
     assert claim["status"] == "DRAFT" and claim["source"] == "datadog_webhook" and claim["alert_id"] == "real-1"

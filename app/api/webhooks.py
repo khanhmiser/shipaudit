@@ -7,7 +7,7 @@
   scope hoặc tags, tạo claim nháp cho mọi khoản doanh nghiệp nhận thiếu của hãng đó còn hạn khiếu nại và hết
   hạn trong `within_hours` giờ tới.
 - Gọi B qua contracts.interfaces.ClaimService.create_draft(reconciliation_id, "datadog_webhook", alert_id):
-  dùng core.claims.ClaimService nếu B đã cài, không thì StubClaimService (không ghi DB, cờ stub=true).
+  dùng core.claims.ClaimService của B.
   Idempotent: gửi lại cùng alert_id không tạo thêm claim (B bảo đảm bằng index unique).
 - Chỉ tạo claim nháp. Con người duyệt trước khi gửi hãng.
 """
@@ -27,7 +27,7 @@ from app.deps import get_db
 from app.telemetry.metrics import increment
 from common import config
 from common.enums import Collections
-from contracts.interfaces import ClaimService, StubClaimService
+from contracts.interfaces import ClaimService
 
 log = logging.getLogger("shipaudit.webhook")
 
@@ -44,14 +44,10 @@ def require_secret(x_shipaudit_secret: Annotated[str | None, Header()] = None) -
         raise HTTPException(status_code=401, detail="sai hoặc thiếu X-ShipAudit-Secret")
 
 
-def claim_service(db: Any) -> tuple[ClaimService, bool]:
-    """(dịch vụ claim, có phải stub không)."""
-    try:
-        from core.claims import ClaimService as RealClaimService
+def claim_service(db: Any) -> ClaimService:
+    from core.claims import ClaimService as RealClaimService
 
-        return RealClaimService(db), False
-    except (ImportError, NotImplementedError):
-        return StubClaimService(), True
+    return RealClaimService(db)
 
 
 def carrier_of(alert: DatadogAlert) -> str | None:
@@ -89,7 +85,7 @@ def datadog_webhook(alert: DatadogAlert, db: Any = Depends(get_db)) -> WebhookRe
     else:
         raise HTTPException(status_code=422, detail="payload thiếu reconciliation_id hoặc tag carrier:<mã hãng>")
 
-    svc, stub = claim_service(db)
+    svc = claim_service(db)
     claims, errors = [], []
     for rid in targets:
         try:
@@ -99,7 +95,7 @@ def datadog_webhook(alert: DatadogAlert, db: Any = Depends(get_db)) -> WebhookRe
             errors.append(f"{rid}: {e}")
     log.warning("webhook Datadog: tạo claim nháp", extra={
         "alert_id": alert.alert_id, "monitor_id": alert.monitor_id, "carrier": carrier, "count": len(claims),
-        "errors": len(errors), "stub": stub})
+        "errors": len(errors)})
     increment("shipaudit.ops.webhook_calls", 1, {"carrier": carrier or "none", "result": "created"})
     return WebhookResult(alert_id=alert.alert_id, action="created", carrier=carrier, count=len(claims),
-                         claims=claims, errors=errors, stub=stub)
+                         claims=claims, errors=errors)

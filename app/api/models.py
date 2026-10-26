@@ -21,7 +21,6 @@ class IngestResponse(BaseModel):
     skipped: int = Field(description="Số dòng hỏng bị bỏ qua")
     errors: list[str] = Field(default_factory=list, description="Lý do bỏ qua từng dòng hỏng")
     reconciled: int = Field(description="Số bản ghi reconciliations do reconcile_statement trả về")
-    stub: bool = Field(description="true nếu dùng stub_reconcile_statement vì B chưa cài")
     duration_ms: int
     lag_seconds: float
     file: str | None = None
@@ -44,7 +43,6 @@ class Reconciliation(BaseModel):
     claim_deadline_at: datetime | None = None
     claim_hours_left: float | None = None
     created_at: datetime | None = None
-    stub: bool | None = None
 
 
 class ReconciliationList(BaseModel):
@@ -98,4 +96,3 @@ class WebhookResult(BaseModel):
     count: int = 0
     claims: list[WebhookClaim] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
-    stub: bool = Field(default=False, description="true nếu dùng StubClaimService vì B chưa cài")

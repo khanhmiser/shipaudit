@@ -1,8 +1,7 @@
 """[A] Luồng nạp: lưu file > parse > ghi statement_lines > reconcile_statement > ghi ingest_events.
 
-Gọi B qua contracts.interfaces.ReconcileFn: dùng core.reconcile.reconcile_statement nếu B đã cài
-(chưa cài thì hàm đó ném NotImplementedError), không thì dùng stub_reconcile_statement và ghi kết quả
-stub vào `reconciliations` kèm cờ stub=true.
+Gọi B qua contracts.interfaces.ReconcileFn: dùng core.reconcile.reconcile_statement (test có thể truyền
+hàm khác qua reconcile_fn). Lỗi ở bước đối soát làm lượt nạp ERROR với error_kind="reconcile".
 Ghi ingest_events (Time Series, timeField ts, metaField meta={carrier, statement_id}) với: rows, skipped,
 duration_ms, status (OK / PARTIAL / ERROR), lag_seconds. Có TTL. Atlas không tạo được Time Series thì
 dùng collection thường có TTL index và ghi log cảnh báo.
@@ -31,7 +30,7 @@ from pymongo.errors import OperationFailure
 from app.ingest.parsers import StatementFormatError, get_parser
 from app.telemetry.metrics import increment, metric
 from common.enums import Collections
-from contracts.interfaces import ReconcileFn, stub_reconcile_statement
+from contracts.interfaces import ReconcileFn
 
 log = logging.getLogger("shipaudit.ingest")
 
@@ -61,7 +60,6 @@ class IngestResult:
     skipped: int = 0
     errors: list[str] = field(default_factory=list)
     reconciled: int = 0
-    stub: bool = False
     duration_ms: int = 0
     lag_seconds: float = 0.0
     file: str | None = None
@@ -152,29 +150,11 @@ def write_lines(db: Any, lines: list[dict], period: str | None) -> int:
     return unique
 
 
-def _real_reconcile() -> ReconcileFn | None:
-    try:
-        from core.reconcile import reconcile_statement
-    except ImportError:
-        return None
-    return reconcile_statement
-
-
-def reconcile(db: Any, statement_id: str, carrier: str, fn: ReconcileFn | None = None) -> tuple[int, bool]:
-    """Gọi reconcile_statement của B. Trả về (số bản ghi đối soát, có phải kết quả stub không)."""
-    fn = fn or _real_reconcile()
-    if fn is not None:
-        try:
-            return len(fn(statement_id, db)), False
-        except NotImplementedError:
-            log.info("core.reconcile chưa cài, dùng stub_reconcile_statement", extra={"statement_id": statement_id})
-    records = stub_reconcile_statement(statement_id, db)
-    db[Collections.RECONCILIATIONS].bulk_write([
-        UpdateOne({"statement_id": r["statement_id"], "order_code": r["order_code"]},
-                  {"$set": {**r, "carrier": carrier, "stub": True}}, upsert=True)
-        for r in records
-    ], ordered=False)
-    return len(records), True
+def reconcile(db: Any, statement_id: str, fn: ReconcileFn | None = None) -> int:
+    """Gọi reconcile_statement của B. Trả về số bản ghi đối soát."""
+    if fn is None:
+        from core.reconcile import reconcile_statement as fn
+    return len(fn(statement_id, db))
 
 
 def _utcnow() -> datetime:
@@ -218,7 +198,7 @@ def ingest(
         parsed = parser.parse_report(raw, statement_id, ingested_at=received_at)
         result.errors, result.skipped = parsed.errors, len(parsed.errors)
         result.rows = write_lines(db, parsed.lines, period)
-        result.reconciled, result.stub = reconcile(db, statement_id, carrier, reconcile_fn)
+        result.reconciled = reconcile(db, statement_id, reconcile_fn)
         result.status = PARTIAL if parsed.errors else OK
     except StatementFormatError as e:
         result.status, result.error, result.error_kind = ERROR, str(e), "format"
@@ -254,6 +234,6 @@ def ingest(
     log.log(level, "nạp bảng kê thất bại" if result.status == ERROR else "nạp bảng kê xong", extra={
         "statement_id": statement_id, "carrier": carrier, "status": result.status, "rows": result.rows,
         "skipped": result.skipped, "duration_ms": result.duration_ms, "lag_seconds": result.lag_seconds,
-        "stub": result.stub, "error_kind": result.error_kind, "error": result.error,
+        "error_kind": result.error_kind, "error": result.error,
     })
     return result

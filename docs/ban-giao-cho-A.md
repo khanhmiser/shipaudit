@@ -7,10 +7,10 @@ Không có khóa, mật khẩu hay chuỗi kết nối nào trong file này. Xem
 
 ## 1. Tình hình hiện tại
 
-- **Phần B (B1–B10) xong code**, nằm trong repo chính, nhánh `b/m1-rules-and-data`. Trước khi bàn giao B sẽ commit và push nhánh này (xem mục 2, bước 0).
-- **Phần A (A2–A10) đã được B viết thay** khi A bận, nằm ở 3 nhánh `a/m1-ingest-skeleton`, `a/m2-api-telemetry`, `a/m3-datadog-ops-webhook` (15 commit, chưa push). Bản Docker (A1) còn lại một ít thay đổi chưa commit ở worktree `../shipaudit-a`.
-- Đã thử ghép trong một thư mục nháp: parser và luồng nạp của A cùng engine của B xử lý 24 bảng kê của bộ dữ liệu demo `chat_v1`, đối soát **khớp đáp án `labels.json` 5.281/5.281 dòng**. Chưa merge thật, chưa chạy Docker.
-- Test: 169 test qua khi có kết nối Atlas (B: 143 qua + 26 chạy trên Atlas; A có 84 test riêng).
+- **Phần B (B1–B10) xong code**, đã commit local trên nhánh `b/m1-rules-and-data` (4 commit) và nhánh `contract/payout-basis-optional-fields` (1 commit, contract 0.3.0). Chưa push.
+- **Phần A (A2–A10) đã được B viết thay** khi A bận, ở nhánh `a/m3-datadog-ops-webhook` (đã chứa `a/m1`, `a/m2`; 16 commit gồm bản sửa Docker A1). Chưa push.
+- **Đã ghép sẵn (26/10)** ở nhánh `integration/ab-merge` = nhánh B + nhánh A, không xung đột, kèm các sửa ở mục 2 bước 2. Test trên nhánh này: 220 qua, 28 bỏ qua (đều là test cần Atlas, vì lúc chạy Atlas không kết nối được).
+- Trước đó đã thử ghép đầu cuối: parser và luồng nạp của A cùng engine của B xử lý 24 bảng kê `chat_v1`, đối soát **khớp đáp án `labels.json` 5.281/5.281 dòng**. Chưa chạy Docker.
 - Dữ liệu demo chính: bộ `generator/out/chat_v1/` (100% tổng hợp, Carrier A/B/C giả). Nạp bằng `make seed-chat` (tương đương `python -m generator.chat_v1 --db <tên> --reset`).
 
 A hãy xem lại nhánh của mình: nhiều việc A2–A10 do B viết, A duyệt hoặc sửa theo ý mình.
@@ -18,10 +18,10 @@ A hãy xem lại nhánh của mình: nhiều việc A2–A10 do B viết, A duy�
 ## 2. Việc của A, theo thứ tự
 
 ### Bước 0 (B làm trước, A chờ báo)
-B commit phần B, tách thay đổi `contracts/` (phiên bản làm việc 0.3.0) sang nhánh `contract/...`, push các nhánh. A chỉ bắt đầu bước 1 khi B báo đã push.
+Đã commit local (xem mục 1). B còn phải **push** bốn nhánh: `contract/payout-basis-optional-fields`, `b/m1-rules-and-data`, `a/m3-datadog-ops-webhook` (kèm `a/m1`, `a/m2`) và `integration/ab-merge`, rồi báo A. A bắt đầu bước 1 khi B báo đã push.
 
 ### Bước 1. Duyệt contract 0.3.0
-Nhánh `contract/...` đổi `contracts/` từ 0.1.0 lên 0.3.0. Xem các thay đổi:
+Nhánh `contract/payout-basis-optional-fields` đổi `contracts/` từ 0.1.0 lên 0.3.0. Xem các thay đổi:
 
 | Thay đổi | Ghi chú |
 |---|---|
@@ -33,16 +33,16 @@ Nhánh `contract/...` đổi `contracts/` từ 0.1.0 lên 0.3.0. Xem các thay �
 
 Nếu đồng ý: merge nhánh contract vào `main` trước. Nếu không đồng ý điểm nào: ghi vào `docs/decisions.md` và nói với B.
 
-### Bước 2. Ghép code (merge)
-Thứ tự gợi ý: `contract/...` → nhánh A (`a/m1` → `a/m2` → `a/m3`) → nhánh B. Mỗi nhánh một PR nhỏ, người kia duyệt, không commit thẳng vào `main`.
+### Bước 2. Ghép code (B đã làm sẵn, A xem lại và mở PR)
+Nhánh `integration/ab-merge` đã gộp nhánh B và nhánh A. Thứ tự mở PR vào `main`: `contract/...` trước, rồi `integration/ab-merge` (hoặc tách `a/m3` và `b/m1` thành hai PR nhỏ nếu muốn duyệt riêng). Không commit thẳng vào `main`.
 
-Chỗ cần chú ý khi ghép:
-1. **`Makefile`**: bản B có thêm `seed-chat`; cả hai bên đều có `scenario-biz`, `scenario-ops`. Gộp lại và đổi `scenario-biz` thành `python -m scenarios.biz.run --db shipaudit_demo --reset` (bắt buộc có `--reset`).
-2. **`app/ingest/pipeline.py`**: bản trên `main` vẫn dùng stub; sau khi ghép phải gọi `core.reconcile.reconcile_statement` thật (đã thử và chạy được). Bỏ cờ `stub=true`.
-3. **`scenarios/ops/run.py`** trên `main` chỉ có `raise NotImplementedError`; bản thật ở `a/m3`.
-4. **Index `statement_lines`**: hai bên cùng dùng index unique tên `statement_order_unique`; `core.indexes.ensure_indexes` tự xóa index cũ `statement_order`.
-5. **Docker**: `docker-compose.yml`, `app/Dockerfile`, `.dockerignore`, `README.md` ở `../shipaudit-a` còn sửa chưa commit; commit chúng trước khi ghép.
-6. Chạy `pytest -q` trên mongomock rồi trên Atlas sau mỗi lần merge.
+Sáu chỗ dễ vướng, tình trạng sau khi ghép:
+1. **`Makefile`**: xong. `make scenario-biz` chạy `--db $(SCENARIO_DB) --reset` (mặc định `shipaudit_scenario`); `make seed-chat` nạp vào `$(DEMO_DB)` (mặc định `shipaudit_demo`). Hai database tách nhau vì kịch bản nghiệp vụ **xóa và seed lại** database của nó, nên không được trỏ vào database demo.
+2. **`app/ingest/pipeline.py`**: xong. Bỏ đường dự phòng stub, luôn gọi `core.reconcile.reconcile_statement` thật; bỏ cờ `stub` khỏi kết quả nạp và API (`app/api/models.py`). Webhook `app/api/webhooks.py` cũng bỏ `StubClaimService`, dùng `core.claims.ClaimService`. Test nạp dùng hàm đối soát giả khai báo trong test, các test khác chạy đối soát thật.
+3. **`scenarios/ops/run.py`**: xong, bản thật của `a/m3` đã vào nhánh ghép.
+4. **Index `statement_lines`**: hai bên cùng khai báo index unique tên `statement_order_unique`, `ensure_indexes` tự xóa `statement_order` cũ. **Lưu ý**: trên mongomock, nếu `ensure_storage` (A) chạy trước `ensure_indexes` (B) thì báo "already exists with different options". Thứ tự ngược lại và gọi lặp lại đều ổn. Nghi là đặc điểm của mongomock (cùng đặc tả, tên và unique) nhưng **chưa kiểm được trên MongoDB thật** vì Atlas đang không kết nối. A kiểm trên Atlas khi chạy bước 3; nếu lỗi thật thì để một bên gọi hàm của bên kia.
+5. **Docker**: xong. Các sửa A1 đã commit ở `a/m3` (commit `715f48b`).
+6. **Test**: chạy trên mongomock, 220 qua. Test cần Atlas (28) chưa chạy lại, A chạy khi Atlas sẵn sàng.
 
 ### Bước 3. Chạy Docker thật (A1)
 1. Bật Docker Desktop. `cp .env.example .env`, điền `MONGO_URI`, `MONGO_DB`, `DD_API_KEY`, `DD_SITE=uk1.datadoghq.com`.
@@ -54,11 +54,11 @@ Chỗ cần chú ý khi ghép:
 4. Nếu build lỗi: sửa trong nhánh A, ghi vào `docs/decisions.md`.
 
 ### Bước 4. Database demo chung và kịch bản hai lớp (I3, I4)
-1. Chọn tên database demo chung (ví dụ `shipaudit_demo`), nạp: `python -m generator.chat_v1 --db shipaudit_demo --reset`.
+1. Nạp database demo chung: `make seed-chat` (mặc định `shipaudit_demo`, đổi bằng `DEMO_DB=<tên> make seed-chat`).
 2. Trong `.env`: `MONGO_DB=shipaudit_demo`.
 3. Chạy kịch bản từ trạng thái sạch:
    - Lớp vận hành: `python -m scenarios.ops.run --api http://127.0.0.1:8000`. Kỳ vọng: 4 monitor vận hành (72794–72797) kích hoạt ở pha sự cố, về OK ở pha khắc phục.
-   - Lớp nghiệp vụ: `python -m scenarios.biz.run --db shipaudit_demo --reset`. **Lưu ý**: kịch bản này hiện dùng dữ liệu `generator.seed` (sự cố Carrier B, 80 đơn thiếu 150.000đ), chưa chuyển sang `chat_v1` (sự cố Carrier C, kỳ W42). B sẽ quyết định có đổi hay không và báo A.
+   - Lớp nghiệp vụ: `make scenario-biz` (xóa và seed lại database riêng `shipaudit_scenario`, **không** đụng database demo). **Lưu ý**: kịch bản này hiện dùng dữ liệu `generator.seed` (sự cố Carrier B, 80 đơn thiếu 150.000đ), chưa chuyển sang `chat_v1` (sự cố Carrier C, kỳ W42). B sẽ quyết định có đổi hay không và báo A.
 4. Kiểm Datadog uk1: dashboard `3ti-98m-p8s` (nghiệp vụ) và `yh5-e7m-dd2` (vận hành); monitor nghiệp vụ 72687, 72690, 72691.
 
 ### Bước 5. Webhook Datadog gọi thật (A9)
@@ -66,8 +66,8 @@ Datadog không gọi được `localhost`. Dựng tunnel (ví dụ cloudflared h
 
 ## 3. Tiêu chí hoàn thành
 
-- [ ] `contract/...` merge, `contracts/VERSION` = 0.3.0.
-- [ ] Nhánh A và nhánh B đã merge vào `main`, `pytest -q` qua hết (kể cả test Atlas).
+- [ ] `contract/payout-basis-optional-fields` merge, `contracts/VERSION` = 0.3.0.
+- [ ] `integration/ab-merge` (hoặc hai nhánh A, B) merge vào `main`, `pytest -q` qua hết (kể cả 28 test Atlas).
 - [ ] `docker compose up --build` chạy sạch từ máy mới, mọi service healthy.
 - [ ] Nạp 24 bảng kê chat_v1 qua API, đối soát khớp `labels.json`.
 - [ ] Hai kịch bản chạy từ trạng thái sạch ra đúng kết quả mô tả, hai bên đều thấy trên Datadog.

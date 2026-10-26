@@ -1,4 +1,4 @@
-"""Luồng nạp trên mongomock: một lần nạp ghi đủ statement_lines, reconciliations (stub khi B chưa cài),
+"""Luồng nạp trên mongomock: một lần nạp ghi đủ statement_lines, reconciliations (đối soát thật của B),
 ingest_events; nạp lại không nhân đôi; dòng hỏng → PARTIAL; sai tiêu đề → ERROR; công tắc lỗi làm lag tăng.
 """
 import random
@@ -52,20 +52,24 @@ def run(db, tmp_path, metrics):
     return _run
 
 
-def _not_implemented(statement_id, db):
-    raise NotImplementedError
+def _fake_reconcile(statement_id, db):
+    """Thay reconcile_statement của B: ghi một bản ghi đối soát để thử luồng nạp tách khỏi engine."""
+    rec = {"statement_id": statement_id, "order_code": "FAKE-001", "carrier": "carrier_x",
+           "expected_amount": 100_000, "actual_amount": 95_000, "diff": 5_000, "diff_type": "FEE_MISMATCH"}
+    db[Collections.RECONCILIATIONS].update_one(
+        {"statement_id": statement_id, "order_code": "FAKE-001"}, {"$set": rec}, upsert=True)
+    return [rec]
 
 
 @pytest.mark.parametrize("carrier", ["carrier_a", "carrier_b", "carrier_c"])
 def test_one_ingest_fills_three_collections(db, run, carrier, tmp_path):
-    res = run(carrier, reconcile_fn=_not_implemented)
+    res = run(carrier, reconcile_fn=_fake_reconcile)
     assert res.status == OK and res.rows == 4 and res.skipped == 0
     assert db[Collections.STATEMENT_LINES].count_documents({"statement_id": res.statement_id}) == 4
 
-    # B chưa cài reconcile_statement: dùng stub, ghi kèm cờ stub=true.
-    assert res.stub and res.reconciled == 1
+    assert res.reconciled == 1
     rec = db[Collections.RECONCILIATIONS].find_one({"statement_id": res.statement_id})
-    assert rec["stub"] is True and rec["carrier"] == carrier and rec["diff"] == 5_000
+    assert rec["diff"] == 5_000
 
     ev = db[Collections.INGEST_EVENTS].find_one()
     assert ev["meta"] == {"carrier": carrier, "statement_id": res.statement_id}
@@ -84,13 +88,13 @@ def test_real_reconcile_is_called(db, run):
         return [{}, {}, {}]
 
     res = run(reconcile_fn=fake)
-    assert calls == [res.statement_id] and res.reconciled == 3 and not res.stub
+    assert calls == [res.statement_id] and res.reconciled == 3
     assert db[Collections.RECONCILIATIONS].count_documents({}) == 0
 
 
 def test_ingest_twice_does_not_duplicate(db, run):
-    first = run(reconcile_fn=_not_implemented)
-    second = run(reconcile_fn=_not_implemented)
+    first = run(reconcile_fn=_fake_reconcile)
+    second = run(reconcile_fn=_fake_reconcile)
     assert first.statement_id == second.statement_id  # cùng nội dung → cùng mã bảng kê
     assert db[Collections.STATEMENT_LINES].count_documents({}) == 4
     assert db[Collections.RECONCILIATIONS].count_documents({}) == 1
