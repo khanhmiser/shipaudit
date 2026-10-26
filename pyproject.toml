@@ -12,12 +12,13 @@ dependencies = [
     "python-multipart>=0.0.9",
     "streamlit>=1.35",
     "pandas>=2.2",
+    "altair>=5.0",
     "ddtrace>=2.9",
     "datadog>=0.49",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "httpx>=0.27"]
+dev = ["pytest>=8.0", "httpx>=0.27", "mongomock>=4.1"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
