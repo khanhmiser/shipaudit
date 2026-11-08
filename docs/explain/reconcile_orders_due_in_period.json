@@ -1,0 +1,132 @@
+{
+ "explainVersion": "1",
+ "queryPlanner": {
+  "namespace": "shipaudit_b_dev.orders",
+  "parsedQuery": {
+   "$and": [
+    {
+     "carrier": {
+      "$eq": "carrier_b"
+     }
+    },
+    {
+     "delivered_at": {
+      "$lt": {
+       "$date": "2026-10-15T17:00:00Z"
+      }
+     }
+    },
+    {
+     "delivered_at": {
+      "$gte": {
+       "$date": "2026-10-08T17:00:00Z"
+      }
+     }
+    }
+   ]
+  },
+  "indexFilterSet": false,
+  "queryHash": "A12DF3DD",
+  "planCacheShapeHash": "A12DF3DD",
+  "planCacheKey": "09131CC3",
+  "optimizationTimeMillis": 0,
+  "maxIndexedOrSolutionsReached": false,
+  "maxIndexedAndSolutionsReached": false,
+  "maxScansToExplodeReached": false,
+  "prunedSimilarIndexes": false,
+  "winningPlan": {
+   "isCached": false,
+   "stage": "FETCH",
+   "inputStage": {
+    "stage": "IXSCAN",
+    "keyPattern": {
+     "carrier": 1,
+     "delivered_at": 1
+    },
+    "indexName": "carrier_delivered_at",
+    "isMultiKey": false,
+    "multiKeyPaths": {
+     "carrier": [],
+     "delivered_at": []
+    },
+    "isUnique": false,
+    "isSparse": false,
+    "isPartial": false,
+    "indexVersion": 2,
+    "direction": "forward",
+    "indexBounds": {
+     "carrier": [
+      "[\"carrier_b\", \"carrier_b\"]"
+     ],
+     "delivered_at": [
+      "[new Date(1791478800000), new Date(1792083600000))"
+     ]
+    }
+   }
+  },
+  "rejectedPlans": []
+ },
+ "executionStats": {
+  "executionSuccess": true,
+  "nReturned": 726,
+  "executionTimeMillis": 2,
+  "totalKeysExamined": 726,
+  "totalDocsExamined": 726,
+  "executionStages": {
+   "isCached": false,
+   "stage": "FETCH",
+   "nReturned": 726,
+   "executionTimeMillisEstimate": 2,
+   "works": 727,
+   "advanced": 726,
+   "needTime": 0,
+   "needYield": 0,
+   "saveState": 0,
+   "restoreState": 0,
+   "isEOF": 1,
+   "docsExamined": 726,
+   "alreadyHasObj": 0,
+   "inputStage": {
+    "stage": "IXSCAN",
+    "nReturned": 726,
+    "executionTimeMillisEstimate": 0,
+    "works": 727,
+    "advanced": 726,
+    "needTime": 0,
+    "needYield": 0,
+    "saveState": 0,
+    "restoreState": 0,
+    "isEOF": 1,
+    "keyPattern": {
+     "carrier": 1,
+     "delivered_at": 1
+    },
+    "indexName": "carrier_delivered_at",
+    "isMultiKey": false,
+    "multiKeyPaths": {
+     "carrier": [],
+     "delivered_at": []
+    },
+    "isUnique": false,
+    "isSparse": false,
+    "isPartial": false,
+    "indexVersion": 2,
+    "direction": "forward",
+    "indexBounds": {
+     "carrier": [
+      "[\"carrier_b\", \"carrier_b\"]"
+     ],
+     "delivered_at": [
+      "[new Date(1791478800000), new Date(1792083600000))"
+     ]
+    },
+    "keysExamined": 726,
+    "seeks": 1,
+    "dupsTested": 0,
+    "dupsDropped": 0
+   }
+  }
+ },
+ "queryShapeHash": "7394BC0994A7FB24CC34EB71745EA734B0E03328F8A36C0E4F62D061B1B5D329",
+ "ok": 1.0
+}

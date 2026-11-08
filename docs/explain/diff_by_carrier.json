@@ -1,0 +1,642 @@
+{
+ "explainVersion": "1",
+ "stages": [
+  {
+   "$cursor": {
+    "queryPlanner": {
+     "namespace": "shipaudit_b_dev.reconciliations",
+     "parsedQuery": {
+      "$and": [
+       {
+        "carrier": {
+         "$eq": "carrier_b"
+        }
+       },
+       {
+        "period": {
+         "$eq": "2026-W42"
+        }
+       }
+      ]
+     },
+     "indexFilterSet": false,
+     "queryHash": "9A6B8193",
+     "planCacheShapeHash": "9A6B8193",
+     "planCacheKey": "AAC60FAC",
+     "optimizationTimeMillis": 0,
+     "maxIndexedOrSolutionsReached": false,
+     "maxIndexedAndSolutionsReached": false,
+     "maxScansToExplodeReached": false,
+     "prunedSimilarIndexes": false,
+     "winningPlan": {
+      "isCached": false,
+      "stage": "PROJECTION_SIMPLE",
+      "transformBy": {
+       "actual_amount": 1,
+       "carrier": 1,
+       "diff": 1,
+       "diff_type": 1,
+       "expected_amount": 1,
+       "period": 1,
+       "_id": 0
+      },
+      "inputStage": {
+       "stage": "FETCH",
+       "inputStage": {
+        "stage": "IXSCAN",
+        "keyPattern": {
+         "carrier": 1,
+         "period": 1,
+         "diff_type": 1
+        },
+        "indexName": "carrier_period_diff_type",
+        "isMultiKey": false,
+        "multiKeyPaths": {
+         "carrier": [],
+         "period": [],
+         "diff_type": []
+        },
+        "isUnique": false,
+        "isSparse": false,
+        "isPartial": false,
+        "indexVersion": 2,
+        "direction": "forward",
+        "indexBounds": {
+         "carrier": [
+          "[\"carrier_b\", \"carrier_b\"]"
+         ],
+         "period": [
+          "[\"2026-W42\", \"2026-W42\"]"
+         ],
+         "diff_type": [
+          "[MinKey, MaxKey]"
+         ]
+        }
+       }
+      }
+     },
+     "rejectedPlans": []
+    },
+    "executionStats": {
+     "executionSuccess": true,
+     "nReturned": 742,
+     "executionTimeMillis": 5,
+     "totalKeysExamined": 742,
+     "totalDocsExamined": 742,
+     "executionStages": {
+      "isCached": false,
+      "stage": "PROJECTION_SIMPLE",
+      "nReturned": 742,
+      "executionTimeMillisEstimate": 0,
+      "works": 743,
+      "advanced": 742,
+      "needTime": 0,
+      "needYield": 0,
+      "saveState": 5,
+      "restoreState": 5,
+      "isEOF": 1,
+      "transformBy": {
+       "actual_amount": 1,
+       "carrier": 1,
+       "diff": 1,
+       "diff_type": 1,
+       "expected_amount": 1,
+       "period": 1,
+       "_id": 0
+      },
+      "inputStage": {
+       "stage": "FETCH",
+       "nReturned": 742,
+       "executionTimeMillisEstimate": 0,
+       "works": 743,
+       "advanced": 742,
+       "needTime": 0,
+       "needYield": 0,
+       "saveState": 5,
+       "restoreState": 5,
+       "isEOF": 1,
+       "docsExamined": 742,
+       "alreadyHasObj": 0,
+       "inputStage": {
+        "stage": "IXSCAN",
+        "nReturned": 742,
+        "executionTimeMillisEstimate": 0,
+        "works": 743,
+        "advanced": 742,
+        "needTime": 0,
+        "needYield": 0,
+        "saveState": 5,
+        "restoreState": 5,
+        "isEOF": 1,
+        "keyPattern": {
+         "carrier": 1,
+         "period": 1,
+         "diff_type": 1
+        },
+        "indexName": "carrier_period_diff_type",
+        "isMultiKey": false,
+        "multiKeyPaths": {
+         "carrier": [],
+         "period": [],
+         "diff_type": []
+        },
+        "isUnique": false,
+        "isSparse": false,
+        "isPartial": false,
+        "indexVersion": 2,
+        "direction": "forward",
+        "indexBounds": {
+         "carrier": [
+          "[\"carrier_b\", \"carrier_b\"]"
+         ],
+         "period": [
+          "[\"2026-W42\", \"2026-W42\"]"
+         ],
+         "diff_type": [
+          "[MinKey, MaxKey]"
+         ]
+        },
+        "keysExamined": 742,
+        "seeks": 1,
+        "dupsTested": 0,
+        "dupsDropped": 0
+       }
+      }
+     }
+    }
+   },
+   "nReturned": 742,
+   "executionTimeMillisEstimate": 2
+  },
+  {
+   "$facet": {
+    "by_carrier": [
+     {
+      "$internalFacetTeeConsumer": {},
+      "nReturned": 742,
+      "executionTimeMillisEstimate": 2
+     },
+     {
+      "$group": {
+       "_id": {
+        "carrier": "$carrier"
+       },
+       "records": {
+        "$sum": {
+         "$const": 1
+        }
+       },
+       "diff_count": {
+        "$sum": {
+         "$cond": [
+          {
+           "$ne": [
+            "$diff_type",
+            {
+             "$const": "NONE"
+            }
+           ]
+          },
+          {
+           "$const": 1
+          },
+          {
+           "$const": 0
+          }
+         ]
+        }
+       },
+       "diff_amount": {
+        "$sum": {
+         "$cond": [
+          {
+           "$ne": [
+            "$diff_type",
+            {
+             "$const": "NONE"
+            }
+           ]
+          },
+          "$diff",
+          {
+           "$const": 0
+          }
+         ]
+        }
+       },
+       "owed_amount": {
+        "$sum": {
+         "$cond": [
+          {
+           "$and": [
+            {
+             "$ne": [
+              "$diff_type",
+              {
+               "$const": "NONE"
+              }
+             ]
+            },
+            {
+             "$gt": [
+              "$diff",
+              {
+               "$const": 0
+              }
+             ]
+            }
+           ]
+          },
+          "$diff",
+          {
+           "$const": 0
+          }
+         ]
+        }
+       },
+       "expected_amount": {
+        "$sum": "$expected_amount"
+       },
+       "actual_amount": {
+        "$sum": "$actual_amount"
+       }
+      },
+      "maxAccumulatorMemoryUsageBytes": {
+       "records": 128,
+       "diff_count": 128,
+       "diff_amount": 128,
+       "owed_amount": 128,
+       "expected_amount": 128,
+       "actual_amount": 128
+      },
+      "totalOutputDataSizeBytes": 874,
+      "usedDisk": false,
+      "spills": 0,
+      "spilledDataStorageSize": 0,
+      "numBytesSpilledEstimate": 0,
+      "spilledRecords": 0,
+      "nReturned": 1,
+      "executionTimeMillisEstimate": 3
+     },
+     {
+      "$project": {
+       "records": true,
+       "diff_count": true,
+       "diff_amount": true,
+       "owed_amount": true,
+       "expected_amount": true,
+       "actual_amount": true,
+       "carrier": "$_id.carrier",
+       "_id": false
+      },
+      "nReturned": 1,
+      "executionTimeMillisEstimate": 3
+     },
+     {
+      "$sort": {
+       "sortKey": {
+        "carrier": 1
+       }
+      },
+      "totalDataSizeSortedBytesEstimate": 637,
+      "usedDisk": false,
+      "spills": 0,
+      "spilledDataStorageSize": 0,
+      "nReturned": 1,
+      "executionTimeMillisEstimate": 3
+     }
+    ],
+    "by_type": [
+     {
+      "$internalFacetTeeConsumer": {},
+      "nReturned": 742,
+      "executionTimeMillisEstimate": 0
+     },
+     {
+      "$match": {
+       "diff_type": {
+        "$not": {
+         "$eq": "NONE"
+        }
+       }
+      },
+      "nReturned": 117,
+      "executionTimeMillisEstimate": 1
+     },
+     {
+      "$group": {
+       "_id": {
+        "carrier": "$carrier",
+        "diff_type": "$diff_type"
+       },
+       "diff_count": {
+        "$sum": {
+         "$const": 1
+        }
+       },
+       "diff_amount": {
+        "$sum": "$diff"
+       }
+      },
+      "maxAccumulatorMemoryUsageBytes": {
+       "diff_count": 640,
+       "diff_amount": 640
+      },
+      "totalOutputDataSizeBytes": 2695,
+      "usedDisk": false,
+      "spills": 0,
+      "spilledDataStorageSize": 0,
+      "numBytesSpilledEstimate": 0,
+      "spilledRecords": 0,
+      "nReturned": 5,
+      "executionTimeMillisEstimate": 1
+     },
+     {
+      "$project": {
+       "diff_count": true,
+       "diff_amount": true,
+       "carrier": "$_id.carrier",
+       "diff_type": "$_id.diff_type",
+       "_id": false
+      },
+      "nReturned": 5,
+      "executionTimeMillisEstimate": 1
+     },
+     {
+      "$sort": {
+       "sortKey": {
+        "carrier": 1,
+        "diff_type": 1
+       }
+      },
+      "totalDataSizeSortedBytesEstimate": 2115,
+      "usedDisk": false,
+      "spills": 0,
+      "spilledDataStorageSize": 0,
+      "nReturned": 5,
+      "executionTimeMillisEstimate": 1
+     }
+    ],
+    "by_period": [
+     {
+      "$internalFacetTeeConsumer": {},
+      "nReturned": 742,
+      "executionTimeMillisEstimate": 0
+     },
+     {
+      "$group": {
+       "_id": {
+        "carrier": "$carrier",
+        "period": "$period"
+       },
+       "records": {
+        "$sum": {
+         "$const": 1
+        }
+       },
+       "diff_count": {
+        "$sum": {
+         "$cond": [
+          {
+           "$ne": [
+            "$diff_type",
+            {
+             "$const": "NONE"
+            }
+           ]
+          },
+          {
+           "$const": 1
+          },
+          {
+           "$const": 0
+          }
+         ]
+        }
+       },
+       "diff_amount": {
+        "$sum": {
+         "$cond": [
+          {
+           "$ne": [
+            "$diff_type",
+            {
+             "$const": "NONE"
+            }
+           ]
+          },
+          "$diff",
+          {
+           "$const": 0
+          }
+         ]
+        }
+       },
+       "owed_amount": {
+        "$sum": {
+         "$cond": [
+          {
+           "$and": [
+            {
+             "$ne": [
+              "$diff_type",
+              {
+               "$const": "NONE"
+              }
+             ]
+            },
+            {
+             "$gt": [
+              "$diff",
+              {
+               "$const": 0
+              }
+             ]
+            }
+           ]
+          },
+          "$diff",
+          {
+           "$const": 0
+          }
+         ]
+        }
+       },
+       "expected_amount": {
+        "$sum": "$expected_amount"
+       },
+       "actual_amount": {
+        "$sum": "$actual_amount"
+       }
+      },
+      "maxAccumulatorMemoryUsageBytes": {
+       "records": 128,
+       "diff_count": 128,
+       "diff_amount": 128,
+       "owed_amount": 128,
+       "expected_amount": 128,
+       "actual_amount": 128
+      },
+      "totalOutputDataSizeBytes": 874,
+      "usedDisk": false,
+      "spills": 0,
+      "spilledDataStorageSize": 0,
+      "numBytesSpilledEstimate": 0,
+      "spilledRecords": 0,
+      "nReturned": 1,
+      "executionTimeMillisEstimate": 0
+     },
+     {
+      "$project": {
+       "records": true,
+       "diff_count": true,
+       "diff_amount": true,
+       "owed_amount": true,
+       "expected_amount": true,
+       "actual_amount": true,
+       "carrier": "$_id.carrier",
+       "period": "$_id.period",
+       "_id": false
+      },
+      "nReturned": 1,
+      "executionTimeMillisEstimate": 0
+     },
+     {
+      "$sort": {
+       "sortKey": {
+        "carrier": 1,
+        "period": 1
+       }
+      },
+      "totalDataSizeSortedBytesEstimate": 709,
+      "usedDisk": false,
+      "spills": 0,
+      "spilledDataStorageSize": 0,
+      "nReturned": 1,
+      "executionTimeMillisEstimate": 0
+     }
+    ],
+    "totals": [
+     {
+      "$internalFacetTeeConsumer": {},
+      "nReturned": 742,
+      "executionTimeMillisEstimate": 0
+     },
+     {
+      "$group": {
+       "_id": {
+        "$const": null
+       },
+       "records": {
+        "$sum": {
+         "$const": 1
+        }
+       },
+       "diff_count": {
+        "$sum": {
+         "$cond": [
+          {
+           "$ne": [
+            "$diff_type",
+            {
+             "$const": "NONE"
+            }
+           ]
+          },
+          {
+           "$const": 1
+          },
+          {
+           "$const": 0
+          }
+         ]
+        }
+       },
+       "diff_amount": {
+        "$sum": {
+         "$cond": [
+          {
+           "$ne": [
+            "$diff_type",
+            {
+             "$const": "NONE"
+            }
+           ]
+          },
+          "$diff",
+          {
+           "$const": 0
+          }
+         ]
+        }
+       },
+       "owed_amount": {
+        "$sum": {
+         "$cond": [
+          {
+           "$and": [
+            {
+             "$ne": [
+              "$diff_type",
+              {
+               "$const": "NONE"
+              }
+             ]
+            },
+            {
+             "$gt": [
+              "$diff",
+              {
+               "$const": 0
+              }
+             ]
+            }
+           ]
+          },
+          "$diff",
+          {
+           "$const": 0
+          }
+         ]
+        }
+       },
+       "expected_amount": {
+        "$sum": "$expected_amount"
+       },
+       "actual_amount": {
+        "$sum": "$actual_amount"
+       }
+      },
+      "maxAccumulatorMemoryUsageBytes": {
+       "records": 128,
+       "diff_count": 128,
+       "diff_amount": 128,
+       "owed_amount": 128,
+       "expected_amount": 128,
+       "actual_amount": 128
+      },
+      "totalOutputDataSizeBytes": 629,
+      "usedDisk": false,
+      "spills": 0,
+      "spilledDataStorageSize": 0,
+      "numBytesSpilledEstimate": 0,
+      "spilledRecords": 0,
+      "nReturned": 1,
+      "executionTimeMillisEstimate": 0
+     },
+     {
+      "$project": {
+       "_id": false
+      },
+      "nReturned": 1,
+      "executionTimeMillisEstimate": 0
+     }
+    ]
+   },
+   "nReturned": 1,
+   "executionTimeMillisEstimate": 4
+  }
+ ],
+ "queryShapeHash": "7DAA89F30311ED63263298AFBBE49632F4BC5A3DB9F890AD6CB2DCAE99B1E7B3",
+ "ok": 1.0
+}

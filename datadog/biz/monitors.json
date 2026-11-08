@@ -1,0 +1,146 @@
+[
+  {
+    "x_ref": "threshold",
+    "name": "ShipAudit [biz] Chênh lệch nhận thiếu vượt ngưỡng: {{carrier.name}}",
+    "type": "query alert",
+    "query": "max(last_5m):sum:shipaudit.biz.diff_amount{!deadline:expired} by {carrier} > 15000000",
+    "message": "{{#is_alert}}Tiền doanh nghiệp nhận thiếu (còn trong hạn khiếu nại, chưa xử lý) của {{carrier.name}} là {{value}} VNĐ, vượt ngưỡng {{threshold}} VNĐ.{{/is_alert}}\n{{#is_warning}}Tiền doanh nghiệp nhận thiếu của {{carrier.name}} là {{value}} VNĐ, đã chạm mức cảnh báo {{warn_threshold}} VNĐ.{{/is_warning}}\n{{#is_recovery}}Tiền nhận thiếu của {{carrier.name}} đã về dưới ngưỡng.{{/is_recovery}}\n\nViệc cần làm: mở màn Chênh lệch, lọc hãng {{carrier.name}}, xem các đơn lệch theo loại (FEE_MISMATCH, RETURN_FEE_DOUBLE, MISSING_IN_STATEMENT, COD_MISMATCH) và lập claim nháp. Con người duyệt claim trước khi gửi hãng.\nXem: $UI_URL/chenh-lech\n\nNgưỡng là kịch bản giả định cho bản demo, dữ liệu tổng hợp. Sửa ngưỡng trong datadog/biz/monitors.json rồi chạy lại apply.py.\nĐiều tra: [notebook các bước]($REF[notebook_url]) · [Log của {{carrier.name}}]($DD_APP/logs?query=service%3A%28shipaudit-api%20OR%20shipaudit-ui%29%20carrier%3A{{carrier.name}})\n$NOTIFY",
+    "tags": [
+      "project:shipaudit",
+      "layer:biz",
+      "service:shipaudit-biz"
+    ],
+    "priority": 2,
+    "options": {
+      "thresholds": {
+        "critical": 15000000,
+        "warning": 10000000
+      },
+      "notify_no_data": false,
+      "require_full_window": false,
+      "include_tags": true,
+      "new_group_delay": 0,
+      "renotify_interval": 0,
+      "notify_audit": false
+    }
+  },
+  {
+    "x_ref": "deadline",
+    "name": "ShipAudit [biz] Sắp hết hạn khiếu nại: {{carrier.name}}",
+    "type": "query alert",
+    "query": "min(last_5m):min:shipaudit.biz.claim_hours_left{*} by {carrier} < 24",
+    "message": "{{#is_alert}}Khoản chênh lệch gần hạn nhất của {{carrier.name}} chỉ còn {{value}} giờ để khiếu nại (dưới {{threshold}} giờ).{{/is_alert}}\n{{#is_warning}}Khoản chênh lệch gần hạn nhất của {{carrier.name}} còn {{value}} giờ để khiếu nại (dưới {{warn_threshold}} giờ).{{/is_warning}}\n{{#is_recovery}}{{carrier.name}} không còn khoản chênh lệch nào sát hạn khiếu nại.{{/is_recovery}}\n\nKhi cảnh báo, webhook gọi POST /webhooks/datadog để tạo claim nháp cho các khoản sắp hết hạn của {{carrier.name}} (idempotent theo mã alert). Con người duyệt claim trước khi gửi hãng.\nXem: $UI_URL/han-khieu-nai\n\nMốc 24 giờ và 48 giờ trùng với mức khẩn trên giao diện (Nghiêm trọng, Cao).\nĐiều tra: [notebook các bước]($REF[notebook_url]) · [Log của {{carrier.name}}]($DD_APP/logs?query=service%3A%28shipaudit-api%20OR%20shipaudit-ui%29%20carrier%3A{{carrier.name}})\n$NOTIFY",
+    "tags": [
+      "project:shipaudit",
+      "layer:biz",
+      "service:shipaudit-biz"
+    ],
+    "priority": 1,
+    "options": {
+      "thresholds": {
+        "critical": 24,
+        "warning": 48
+      },
+      "notify_no_data": false,
+      "require_full_window": false,
+      "include_tags": true,
+      "new_group_delay": 0,
+      "renotify_interval": 0,
+      "notify_audit": false
+    }
+  },
+  {
+    "x_ref": "anomaly",
+    "name": "ShipAudit [biz] Chênh lệch tăng bất thường (Anomaly Detection): {{carrier.name}}",
+    "type": "query alert",
+    "query": "avg(last_1h):anomalies(sum:shipaudit.biz.diff_amount{!deadline:expired} by {carrier}, 'basic', 2, direction='above', interval=60, alert_window='last_5m', count_default_zero='true') >= 1",
+    "message": "{{#is_alert}}Tiền nhận thiếu của {{carrier.name}} tăng vượt dải bình thường mà Datadog học được (Anomaly Detection, thuật toán basic, độ rộng 2).{{/is_alert}}\n{{#is_recovery}}Tiền nhận thiếu của {{carrier.name}} đã trở lại trong dải bình thường.{{/is_recovery}}\n\nThường gặp khi vừa nạp một bảng kê có nhiều đơn bị trừ lệch. Mở màn Chênh lệch, so bảng kê mới với các kỳ trước của {{carrier.name}}.\nXem: $UI_URL/chenh-lech\nĐiều tra: [notebook các bước]($REF[notebook_url]) · [Log của {{carrier.name}}]($DD_APP/logs?query=service%3A%28shipaudit-api%20OR%20shipaudit-ui%29%20carrier%3A{{carrier.name}})\n$NOTIFY",
+    "tags": [
+      "project:shipaudit",
+      "layer:biz",
+      "service:shipaudit-biz"
+    ],
+    "priority": 3,
+    "options": {
+      "thresholds": {
+        "critical": 1,
+        "critical_recovery": 0
+      },
+      "threshold_windows": {
+        "trigger_window": "last_5m",
+        "recovery_window": "last_5m"
+      },
+      "notify_no_data": false,
+      "require_full_window": false,
+      "include_tags": true,
+      "renotify_interval": 0,
+      "notify_audit": false
+    }
+  },
+  {
+    "x_ref": "forecast",
+    "name": "ShipAudit [biz] Dự báo tiền nhận thiếu chạm ngưỡng trong 24 giờ tới: {{carrier.name}}",
+    "type": "query alert",
+    "query": "max(next_1d):forecast(sum:shipaudit.biz.diff_amount{!deadline:expired} by {carrier}, 'linear', 1, interval='60m', history='1w', model='default') >= 15000000",
+    "message": "{{#is_alert}}Theo xu hướng hiện tại, tiền nhận thiếu còn trong hạn của {{carrier.name}} có thể chạm {{threshold}} VNĐ trong 24 giờ tới (Datadog Forecast, dự báo tuyến tính).{{/is_alert}}\n{{#is_recovery}}Dự báo của {{carrier.name}} đã về dưới ngưỡng.{{/is_recovery}}\n\nViệc nên làm sớm: đối chiếu các bảng kê mới nhất của {{carrier.name}} trước khi tiền lệch dồn lại và hạn khiếu nại đến gần.\nXem: $UI_URL/chenh-lech\nĐiều tra: [notebook các bước]($REF[notebook_url]) · [Log của {{carrier.name}}]($DD_APP/logs?query=service%3A%28shipaudit-api%20OR%20shipaudit-ui%29%20carrier%3A{{carrier.name}})\n\nDự báo chỉ để cảnh báo sớm, không dùng để tính tiền. Ngưỡng là kịch bản giả định, dữ liệu tổng hợp.",
+    "tags": [
+      "project:shipaudit",
+      "layer:biz",
+      "service:shipaudit-biz"
+    ],
+    "priority": 3,
+    "options": {
+      "thresholds": {
+        "critical": 15000000
+      },
+      "notify_no_data": false,
+      "require_full_window": false,
+      "include_tags": true,
+      "new_group_delay": 0,
+      "renotify_interval": 0,
+      "notify_audit": false
+    }
+  },
+  {
+    "x_ref": "outlier",
+    "name": "ShipAudit [biz] Chênh lệch của một hãng khác biệt so với các hãng còn lại: {{carrier.name}}",
+    "type": "query alert",
+    "query": "avg(last_30m):outliers(clamp_min(sum:shipaudit.biz.diff_amount{!deadline:expired} by {carrier}, 5000000), 'MAD', 3.0, 20) > 0",
+    "message": "{{#is_alert}}Tiền nhận thiếu còn trong hạn của {{carrier.name}} khác biệt rõ so với các hãng còn lại (Datadog Outlier Detection, thuật toán MAD).{{/is_alert}}\n{{#is_recovery}}{{carrier.name}} đã trở lại cùng mức với các hãng còn lại.{{/is_recovery}}\n\nChỉ xét hãng có trên 5 triệu VNĐ nhận thiếu còn trong hạn (dưới mức này coi như bằng 5 triệu, nên không bị coi là khác biệt; mức 5 triệu là kịch bản giả định). Các hãng được đo bằng cùng một thước đo để ưu tiên việc đối soát, không đánh giá hay xếp hạng hãng.\nXem: $UI_URL/so-sanh-hang\nĐiều tra: [notebook các bước]($REF[notebook_url]) · [Log của {{carrier.name}}]($DD_APP/logs?query=service%3A%28shipaudit-api%20OR%20shipaudit-ui%29%20carrier%3A{{carrier.name}})",
+    "tags": [
+      "project:shipaudit",
+      "layer:biz",
+      "service:shipaudit-biz"
+    ],
+    "priority": 3,
+    "options": {
+      "thresholds": {
+        "critical": 0
+      },
+      "notify_no_data": false,
+      "require_full_window": false,
+      "include_tags": true,
+      "new_group_delay": 0,
+      "renotify_interval": 0,
+      "notify_audit": false
+    }
+  },
+  {
+    "x_ref": "composite",
+    "name": "ShipAudit [biz] Lệch lớn và sắp hết hạn khiếu nại: {{carrier.name}}",
+    "type": "composite",
+    "query": "$REF[threshold] && $REF[deadline]",
+    "message": "{{#is_alert}}{{carrier.name}}: tiền nhận thiếu vượt ngưỡng và khoản gần hạn nhất còn dưới 24 giờ để khiếu nại. Cần xử lý ngay: kiểm tra claim nháp (webhook đã tạo), duyệt và gửi hãng trước hạn.\n$CASE{{/is_alert}}\n{{#is_recovery}}{{carrier.name}} không còn đồng thời lệch lớn và sát hạn.{{/is_recovery}}\n\nXem: $UI_URL/claims\nĐiều tra: [notebook các bước]($REF[notebook_url]) · [Log của {{carrier.name}}]($DD_APP/logs?query=service%3A%28shipaudit-api%20OR%20shipaudit-ui%29%20carrier%3A{{carrier.name}})\n\nMonitor gộp hai monitor nghiệp vụ (vượt ngưỡng và sắp hết hạn khiếu nại) cùng hãng. Con người duyệt claim trước khi gửi hãng.",
+    "tags": [
+      "project:shipaudit",
+      "layer:biz",
+      "service:shipaudit-biz"
+    ],
+    "priority": 1,
+    "options": {
+      "notify_no_data": false,
+      "include_tags": true,
+      "notify_audit": false
+    }
+  }
+]

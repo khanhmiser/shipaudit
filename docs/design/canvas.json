@@ -1,0 +1,17 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-10-22T07:10:00Z" },
+  "title": "ShipAudit Front end",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 1440, "h": 1200, "title": "Tổng quan đối soát", "expand": "fill", "is_interactive": true },
+    "Cases.dc.html": { "x": 1520, "y": 0, "w": 1440, "h": 1060, "title": "Danh sách chênh lệch", "expand": "fill", "is_interactive": true },
+    "Investigate.dc.html": { "x": 3040, "y": 0, "w": 1440, "h": 1360, "title": "Điều tra đơn A-0192", "expand": "fill", "is_interactive": true }
+  },
+  "order": ["Main.dc.html", "Cases.dc.html", "Investigate.dc.html"],
+  "notes": {
+    "t1": { "x": 0, "y": -260, "text": "ShipAudit · Front end (bảng màu AML)", "kind": "title1", "maxW": 4480 }
+  },
+  "designSystems": []
+}

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Danh sách chênh lệch</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="aml-ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+
+<div class="sa" data-theme="{{theme}}" style="min-height:1060px">
+<div class="shell">
+
+<aside class="side" aria-label="Điều hướng chính">
+<div class="brand"><i></i>ShipAudit</div>
+<nav class="nav" aria-label="Chức năng">
+<div class="nav-h">Đối soát</div>
+<a href="Main.dc.html"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Tổng quan</a>
+<a href="Cases.dc.html" class="on"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3z"/><path d="M12 10v5M12 18h.01"/></svg>Chênh lệch<span class="badge b-danger count">7</span></a>
+<a href="#"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M4 10h16M10 4v16"/></svg>Kỳ đối soát</a>
+<a href="#"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6v18h12V7l-4-4z"/><path d="M14 3v4h4"/></svg>Bảng kê</a>
+</nav>
+<nav class="nav" aria-label="Cấu hình">
+<div class="nav-h">Cấu hình</div>
+<a href="#"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 6h12v10H2zM14 10h4l4 3v3h-8"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg>Hãng vận chuyển</a>
+<a href="#"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/></svg>Quy tắc phí</a>
+</nav>
+<nav class="nav" aria-label="Quan sát">
+<div class="nav-h">Quan sát</div>
+<a href="#"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Datadog</a>
+</nav>
+</aside>
+
+<main class="main">
+<div class="topbar">
+<div>
+<div class="crumb">Đối soát / Chênh lệch</div>
+<h1 class="h1">Danh sách chênh lệch</h1>
+<div class="sub">7 đơn · tổng −340.000 ₫ · kỳ 01–15/10/2026</div>
+</div>
+<div class="tools">
+<span class="badge b-accent">DỮ LIỆU TỔNG HỢP</span>
+<a href="#" class="btn btn-ghost btn-sm" style="color:var(--text);text-decoration:none">Xuất CSV</a>
+<span class="avatar" aria-label="Tài khoản">SA</span>
+</div>
+</div>
+
+<!-- Tab + bộ lọc -->
+<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:16px">
+<div class="tabs" role="tablist" aria-label="Trạng thái">
+<span class="tab on" role="tab" aria-selected="true">Tất cả <span class="badge b-muted">7</span></span>
+<span class="tab" role="tab" aria-selected="false">Sắp hết hạn <span class="badge b-warning">3</span></span>
+<span class="tab" role="tab" aria-selected="false">Đang khiếu nại <span class="badge b-muted">0</span></span>
+<span class="tab" role="tab" aria-selected="false">Đã thu hồi <span class="badge b-muted">0</span></span>
+</div>
+<div class="tools" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+<label for="q" style="position:absolute;left:-9999px">Tìm đơn</label>
+<input id="q" class="input" placeholder="Tìm mã đơn..." style="width:200px">
+<span class="chip">Hãng: tất cả ▾</span>
+<span class="chip">Loại: tất cả ▾</span>
+</div>
+</div>
+
+<div class="row" style="align-items:flex-start">
+<!-- Bảng -->
+<section class="card" style="flex:999 1 560px" aria-labelledby="t1">
+<h2 id="t1" style="position:absolute;left:-9999px">Bảng chênh lệch</h2>
+<div style="overflow-x:auto">
+<table class="tbl" style="min-width:820px">
+<thead>
+<tr>
+<th scope="col">Mã đơn</th><th scope="col">Loại chênh lệch</th>
+<th scope="col" class="num">Phải nhận</th><th scope="col" class="num">Thực nhận</th><th scope="col" class="num">Lệch</th>
+<th scope="col" style="width:190px">Hạn khiếu nại</th><th scope="col">Mức</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<th scope="row"><a href="Investigate.dc.html" class="mono" style="font-weight:600">A-0192</a><div class="subtle" style="font-size:12px;font-weight:400">Carrier A</div></th>
+<td>Phụ phí quy đổi sai</td>
+<td class="num mono">593.500</td><td class="num mono">533.500</td><td class="num mono t-danger" style="font-weight:600">−60.000</td>
+<td><div class="t-danger" style="font-weight:600;margin-bottom:6px">18 giờ</div><div class="track"><div class="fill f-danger" style="width:12%"></div></div></td>
+<td><span class="risk"><span class="dot" style="background:var(--risk-critical)"></span><span style="color:var(--risk-critical)">Nghiêm trọng</span></span></td>
+</tr>
+<tr>
+<th scope="row"><a href="Investigate.dc.html" class="mono" style="font-weight:600">A-0231</a><div class="subtle" style="font-size:12px;font-weight:400">Carrier A</div></th>
+<td>Phí hoàn trừ hai lần</td>
+<td class="num mono">412.000</td><td class="num mono">327.000</td><td class="num mono t-danger" style="font-weight:600">−85.000</td>
+<td><div class="t-warning" style="font-weight:600;margin-bottom:6px">1 ngày 6 giờ</div><div class="track"><div class="fill f-warning" style="width:30%"></div></div></td>
+<td><span class="risk"><span class="dot" style="background:var(--risk-high)"></span><span style="color:var(--risk-high)">Cao</span></span></td>
+</tr>
+<tr>
+<th scope="row"><a href="Investigate.dc.html" class="mono" style="font-weight:600">A-0305</a><div class="subtle" style="font-size:12px;font-weight:400">Carrier A</div></th>
+<td>Thiếu trong bảng kê</td>
+<td class="num mono">298.000</td><td class="num mono">223.000</td><td class="num mono t-danger" style="font-weight:600">−75.000</td>
+<td><div class="t-warning" style="font-weight:600;margin-bottom:6px">1 ngày 20 giờ</div><div class="track"><div class="fill f-warning" style="width:44%"></div></div></td>
+<td><span class="risk"><span class="dot" style="background:var(--risk-high)"></span><span style="color:var(--risk-high)">Cao</span></span></td>
+</tr>
+<tr>
+<th scope="row"><a href="Investigate.dc.html" class="mono" style="font-weight:600">A-0388</a><div class="subtle" style="font-size:12px;font-weight:400">Carrier A</div></th>
+<td>Thu hộ ghi lệch</td>
+<td class="num mono">505.000</td><td class="num mono">455.000</td><td class="num mono t-danger" style="font-weight:600">−50.000</td>
+<td><div style="font-weight:600;margin-bottom:6px">2 ngày 4 giờ</div><div class="track"><div class="fill f-primary" style="width:54%"></div></div></td>
+<td><span class="risk"><span class="dot" style="background:var(--risk-medium)"></span><span style="color:var(--risk-medium)">Trung bình</span></span></td>
+</tr>
+<tr>
+<th scope="row"><a href="Investigate.dc.html" class="mono" style="font-weight:600">C-0077</a><div class="subtle" style="font-size:12px;font-weight:400">Carrier C</div></th>
+<td>Phí hoàn trừ lệch</td>
+<td class="num mono">360.000</td><td class="num mono">325.000</td><td class="num mono t-danger" style="font-weight:600">−35.000</td>
+<td><div style="font-weight:600;margin-bottom:6px">3 ngày</div><div class="track"><div class="fill f-primary" style="width:72%"></div></div></td>
+<td><span class="risk"><span class="dot" style="background:var(--risk-medium)"></span><span style="color:var(--risk-medium)">Trung bình</span></span></td>
+</tr>
+<tr>
+<th scope="row"><a href="Investigate.dc.html" class="mono" style="font-weight:600">C-0102</a><div class="subtle" style="font-size:12px;font-weight:400">Carrier C</div></th>
+<td>Phụ phí quy đổi sai</td>
+<td class="num mono">210.000</td><td class="num mono">190.000</td><td class="num mono t-danger" style="font-weight:600">−20.000</td>
+<td><div style="font-weight:600;margin-bottom:6px">3 ngày 6 giờ</div><div class="track"><div class="fill f-primary" style="width:76%"></div></div></td>
+<td><span class="risk"><span class="dot" style="background:var(--risk-low)"></span><span style="color:var(--risk-low)">Thấp</span></span></td>
+</tr>
+<tr>
+<th scope="row"><a href="Investigate.dc.html" class="mono" style="font-weight:600">C-0145</a><div class="subtle" style="font-size:12px;font-weight:400">Carrier C</div></th>
+<td>Cước tính lệch</td>
+<td class="num mono">180.000</td><td class="num mono">165.000</td><td class="num mono t-danger" style="font-weight:600">−15.000</td>
+<td><div style="font-weight:600;margin-bottom:6px">4 ngày</div><div class="track"><div class="fill f-primary" style="width:92%"></div></div></td>
+<td><span class="risk"><span class="dot" style="background:var(--risk-low)"></span><span style="color:var(--risk-low)">Thấp</span></span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<!-- Cột phải -->
+<div style="flex:1 1 280px;max-width:360px;display:flex;flex-direction:column;gap:16px;min-width:0">
+<section class="card" aria-labelledby="t2">
+<div class="card-h"><h2 id="t2" class="card-t">Theo loại chênh lệch</h2></div>
+<div class="card-b" style="display:flex;flex-direction:column;gap:14px">
+<div><div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:6px"><span>Phí hoàn trừ hai lần</span><span class="mono t-danger" style="font-weight:600">−85.000</span></div><div class="track"><div class="fill f-danger" style="width:100%"></div></div></div>
+<div><div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:6px"><span>Phụ phí quy đổi sai · 2 đơn</span><span class="mono t-danger" style="font-weight:600">−80.000</span></div><div class="track"><div class="fill f-danger" style="width:94%"></div></div></div>
+<div><div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:6px"><span>Thiếu trong bảng kê</span><span class="mono t-danger" style="font-weight:600">−75.000</span></div><div class="track"><div class="fill f-danger" style="width:88%"></div></div></div>
+<div><div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:6px"><span>Thu hộ ghi lệch</span><span class="mono t-warning" style="font-weight:600">−50.000</span></div><div class="track"><div class="fill f-warning" style="width:59%"></div></div></div>
+<div><div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:6px"><span>Phí hoàn trừ lệch</span><span class="mono t-warning" style="font-weight:600">−35.000</span></div><div class="track"><div class="fill f-warning" style="width:41%"></div></div></div>
+<div><div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:6px"><span>Cước tính lệch</span><span class="mono t-warning" style="font-weight:600">−15.000</span></div><div class="track"><div class="fill f-warning" style="width:18%"></div></div></div>
+</div>
+</section>
+<div class="note warn">3 đơn còn dưới 48 giờ để khiếu nại. Mở đơn để xem bằng chứng và soạn khiếu nại.</div>
+</div>
+</div>
+
+<p class="subtle" style="font-size:12px;margin:20px 0 0">Dữ liệu tổng hợp, hãng giả định (Carrier A/B/C). Số liệu chỉ để minh họa giao diện.</p>
+</main>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["aml-dark","aml-light"],"default":"aml-dark"},"$preview":{"width":1440,"height":1060}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'aml-dark' };
+  }
+}
+</script>
+</body>
+</html>

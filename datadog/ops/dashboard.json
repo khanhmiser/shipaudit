@@ -1,0 +1,274 @@
+{
+  "title": "ShipAudit [ops] Vận hành: nạp bảng kê và API",
+  "description": "Lớp vận hành của ShipAudit: luồng nạp bảng kê (độ trễ, lỗi), độ trễ API, công tắc lỗi nạp, Change Streams, log lỗi. Metric shipaudit.ops.* do app/ phát. Tạo lại bằng: python datadog/ops/apply.py",
+  "layout_type": "ordered",
+  "reflow_type": "fixed",
+  "template_variables": [
+    {"name": "carrier", "prefix": "carrier", "available_values": [], "default": "*"},
+    {"name": "env", "prefix": "env", "available_values": [], "default": "*"}
+  ],
+  "widgets": [
+    {
+      "definition": {
+        "type": "group",
+        "title": "Luồng nạp bảng kê",
+        "layout_type": "ordered",
+        "background_color": "vivid_purple",
+        "show_title": true,
+        "widgets": [
+          {
+            "definition": {
+              "type": "query_value",
+              "title": "Độ trễ nạp lớn nhất (5 phút)",
+              "title_size": "16",
+              "title_align": "left",
+              "requests": [{
+                "response_format": "scalar",
+                "queries": [{"data_source": "metrics", "name": "q1", "aggregator": "max",
+                             "query": "max:shipaudit.ops.ingest_lag_seconds{$carrier,$env}"}],
+                "formulas": [{"formula": "q1", "number_format": {"unit": {"type": "custom_unit_label", "label": "giây"}}}],
+                "conditional_formats": [
+                  {"comparator": ">", "value": 5, "palette": "white_on_red"},
+                  {"comparator": ">", "value": 2, "palette": "white_on_yellow"},
+                  {"comparator": "<=", "value": 2, "palette": "white_on_green"}
+                ]
+              }],
+              "autoscale": false,
+              "precision": 2,
+              "time": {"type": "live", "unit": "minute", "value": 5}
+            },
+            "layout": {"x": 0, "y": 0, "width": 3, "height": 2}
+          },
+          {
+            "definition": {
+              "type": "query_value",
+              "title": "Tỉ lệ nạp lỗi (10 phút)",
+              "title_size": "16",
+              "title_align": "left",
+              "requests": [{
+                "response_format": "scalar",
+                "queries": [
+                  {"data_source": "metrics", "name": "err", "aggregator": "sum",
+                   "query": "sum:shipaudit.ops.ingest_runs{status:error,$carrier,$env}.as_count()"},
+                  {"data_source": "metrics", "name": "all", "aggregator": "sum",
+                   "query": "sum:shipaudit.ops.ingest_runs{$carrier,$env}.as_count()"}
+                ],
+                "formulas": [{"formula": "100 * default_zero(err) / all",
+                              "number_format": {"unit": {"type": "custom_unit_label", "label": "%"}}}],
+                "conditional_formats": [
+                  {"comparator": ">", "value": 30, "palette": "white_on_red"},
+                  {"comparator": ">", "value": 10, "palette": "white_on_yellow"},
+                  {"comparator": "<=", "value": 10, "palette": "white_on_green"}
+                ]
+              }],
+              "autoscale": false,
+              "precision": 0,
+              "time": {"type": "live", "unit": "minute", "value": 10}
+            },
+            "layout": {"x": 3, "y": 0, "width": 3, "height": 2}
+          },
+          {
+            "definition": {
+              "type": "query_value",
+              "title": "p95 POST /statements",
+              "title_size": "16",
+              "title_align": "left",
+              "requests": [{
+                "response_format": "scalar",
+                "queries": [{"data_source": "metrics", "name": "q1", "aggregator": "max",
+                             "query": "max:shipaudit.ops.api_latency_ms.p95{route:/statements,$env}"}],
+                "formulas": [{"formula": "q1", "number_format": {"unit": {"type": "custom_unit_label", "label": "ms"}}}],
+                "conditional_formats": [
+                  {"comparator": ">", "value": 3000, "palette": "white_on_red"},
+                  {"comparator": ">", "value": 1500, "palette": "white_on_yellow"},
+                  {"comparator": "<=", "value": 1500, "palette": "white_on_green"}
+                ]
+              }],
+              "autoscale": false,
+              "precision": 0,
+              "time": {"type": "live", "unit": "minute", "value": 5}
+            },
+            "layout": {"x": 6, "y": 0, "width": 3, "height": 2}
+          },
+          {
+            "definition": {
+              "type": "query_value",
+              "title": "Công tắc lỗi nạp: độ trễ thêm",
+              "title_size": "16",
+              "title_align": "left",
+              "requests": [{
+                "response_format": "scalar",
+                "queries": [{"data_source": "metrics", "name": "q1", "aggregator": "last",
+                             "query": "max:shipaudit.ops.fault_delay_ms{$env}"}],
+                "formulas": [{"formula": "q1", "number_format": {"unit": {"type": "custom_unit_label", "label": "ms"}}}],
+                "conditional_formats": [
+                  {"comparator": ">", "value": 0, "palette": "white_on_red"},
+                  {"comparator": "<=", "value": 0, "palette": "white_on_green"}
+                ]
+              }],
+              "autoscale": false,
+              "precision": 0
+            },
+            "layout": {"x": 9, "y": 0, "width": 3, "height": 2}
+          },
+          {
+            "definition": {
+              "type": "timeseries",
+              "title": "Độ trễ nạp bảng kê theo hãng (giây)",
+              "title_size": "16",
+              "title_align": "left",
+              "show_legend": true,
+              "legend_layout": "auto",
+              "legend_columns": ["avg", "max", "value"],
+              "requests": [{
+                "response_format": "timeseries",
+                "queries": [{"data_source": "metrics", "name": "q1",
+                             "query": "max:shipaudit.ops.ingest_lag_seconds{$carrier,$env} by {carrier}"}],
+                "formulas": [{"formula": "q1"}],
+                "display_type": "line",
+                "style": {"palette": "dog_classic", "line_type": "solid", "line_width": "normal"}
+              }],
+              "markers": [
+                {"value": "y = 5", "display_type": "error dashed", "label": "Ngưỡng đỏ"},
+                {"value": "y = 2", "display_type": "warning dashed", "label": "Ngưỡng vàng"}
+              ]
+            },
+            "layout": {"x": 0, "y": 2, "width": 6, "height": 4}
+          },
+          {
+            "definition": {
+              "type": "timeseries",
+              "title": "Lượt nạp theo trạng thái",
+              "title_size": "16",
+              "title_align": "left",
+              "show_legend": true,
+              "legend_layout": "auto",
+              "legend_columns": ["sum"],
+              "requests": [{
+                "response_format": "timeseries",
+                "queries": [{"data_source": "metrics", "name": "q1",
+                             "query": "sum:shipaudit.ops.ingest_runs{$carrier,$env} by {status}.as_count()"}],
+                "formulas": [{"formula": "q1"}],
+                "display_type": "bars",
+                "style": {"palette": "semantic", "line_type": "solid", "line_width": "normal"}
+              }]
+            },
+            "layout": {"x": 6, "y": 2, "width": 6, "height": 4}
+          }
+        ]
+      },
+      "layout": {"x": 0, "y": 0, "width": 12, "height": 7}
+    },
+    {
+      "definition": {
+        "type": "group",
+        "title": "API, Change Streams và log",
+        "layout_type": "ordered",
+        "background_color": "vivid_blue",
+        "show_title": true,
+        "widgets": [
+          {
+            "definition": {
+              "type": "timeseries",
+              "title": "p95 thời gian xử lý theo route (ms)",
+              "title_size": "16",
+              "title_align": "left",
+              "show_legend": true,
+              "legend_layout": "auto",
+              "legend_columns": ["avg", "max"],
+              "requests": [{
+                "response_format": "timeseries",
+                "queries": [{"data_source": "metrics", "name": "q1",
+                             "query": "max:shipaudit.ops.api_latency_ms.p95{$env} by {route}"}],
+                "formulas": [{"formula": "q1"}],
+                "display_type": "line",
+                "style": {"palette": "cool", "line_type": "solid", "line_width": "normal"}
+              }],
+              "markers": [{"value": "y = 3000", "display_type": "error dashed", "label": "Ngưỡng đỏ"}]
+            },
+            "layout": {"x": 0, "y": 0, "width": 6, "height": 4}
+          },
+          {
+            "definition": {
+              "type": "timeseries",
+              "title": "Sự kiện chênh lệch từ Change Streams và lỗi worker",
+              "title_size": "16",
+              "title_align": "left",
+              "show_legend": true,
+              "legend_layout": "auto",
+              "legend_columns": ["sum"],
+              "requests": [
+                {
+                  "response_format": "timeseries",
+                  "queries": [{"data_source": "metrics", "name": "q1",
+                               "query": "sum:shipaudit.ops.reconciliation_diff_events{$carrier,$env} by {carrier}.as_count()"}],
+                  "formulas": [{"formula": "q1"}],
+                  "display_type": "bars",
+                  "style": {"palette": "dog_classic", "line_type": "solid", "line_width": "normal"}
+                },
+                {
+                  "response_format": "timeseries",
+                  "queries": [{"data_source": "metrics", "name": "q2",
+                               "query": "sum:shipaudit.ops.change_stream_errors{$env}.as_count()"}],
+                  "formulas": [{"formula": "q2", "alias": "lỗi worker"}],
+                  "display_type": "line",
+                  "style": {"palette": "warm", "line_type": "solid", "line_width": "thick"}
+                }
+              ]
+            },
+            "layout": {"x": 6, "y": 0, "width": 6, "height": 4}
+          },
+          {
+            "definition": {
+              "type": "log_stream",
+              "title": "Log lỗi và cảnh báo của API",
+              "title_size": "16",
+              "title_align": "left",
+              "query": "service:shipaudit-api status:(error OR warn)",
+              "indexes": [],
+              "columns": ["host", "service"],
+              "show_date_column": true,
+              "show_message_column": true,
+              "message_display": "expanded-md",
+              "sort": {"column": "time", "order": "desc"}
+            },
+            "layout": {"x": 0, "y": 4, "width": 8, "height": 5}
+          },
+          {
+            "definition": {
+              "type": "manage_status",
+              "title": "Monitor vận hành",
+              "title_size": "16",
+              "title_align": "left",
+              "query": "tag:(layer:ops) tag:(project:shipaudit)",
+              "summary_type": "combined",
+              "display_format": "countsAndList",
+              "color_preference": "text",
+              "hide_zero_counts": true,
+              "show_last_triggered": true,
+              "show_priority": true,
+              "sort": "status,asc",
+              "count": 50,
+              "start": 0
+            },
+            "layout": {"x": 8, "y": 4, "width": 4, "height": 5}
+          }
+        ]
+      },
+      "layout": {"x": 0, "y": 7, "width": 12, "height": 10}
+    },
+    {
+      "definition": {
+        "type": "note",
+        "content": "**Cách đọc.** Độ trễ nạp = lúc ghi xong − lúc nhận file. Tỉ lệ lỗi = lượt nạp lỗi / tổng lượt nạp. p95 do middleware của API tính mỗi 10 giây (khi có Datadog Agent thì xem thêm APM). Công tắc lỗi nạp (POST /admin/ingest-fault) chỉ dùng cho kịch bản trình diễn. Dữ liệu tổng hợp, hãng giả Carrier A/B/C; ngưỡng là kịch bản giả định.",
+        "background_color": "gray",
+        "font_size": "14",
+        "text_align": "left",
+        "vertical_align": "center",
+        "show_tick": false,
+        "has_padding": true
+      },
+      "layout": {"x": 0, "y": 17, "width": 12, "height": 2}
+    }
+  ]
+}

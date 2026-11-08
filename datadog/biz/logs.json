@@ -1,0 +1,128 @@
+{
+  "pipeline": {
+    "name": "ShipAudit [biz] Log nghiệp vụ: claim, webhook, giao diện",
+    "is_enabled": true,
+    "filter": {
+      "query": "service:(shipaudit-api OR shipaudit-ui)"
+    },
+    "processors": [
+      {
+        "type": "date-remapper",
+        "name": "Giờ của dòng log lấy từ trường ts",
+        "is_enabled": true,
+        "sources": [
+          "ts"
+        ]
+      },
+      {
+        "type": "status-remapper",
+        "name": "Mức log lấy từ trường level",
+        "is_enabled": true,
+        "sources": [
+          "level"
+        ]
+      },
+      {
+        "type": "attribute-remapper",
+        "name": "Hãng thành tag carrier (lọc và nối với metric shipaudit.biz.*)",
+        "is_enabled": true,
+        "sources": [
+          "carrier"
+        ],
+        "source_type": "attribute",
+        "target": "carrier",
+        "target_type": "tag",
+        "preserve_source": true,
+        "override_on_conflict": false
+      },
+      {
+        "type": "attribute-remapper",
+        "name": "Mã cảnh báo Datadog thành tag alert_id (nối monitor, webhook, claim)",
+        "is_enabled": true,
+        "sources": [
+          "alert_id"
+        ],
+        "source_type": "attribute",
+        "target": "alert_id",
+        "target_type": "tag",
+        "preserve_source": true,
+        "override_on_conflict": false
+      },
+      {
+        "type": "attribute-remapper",
+        "name": "Mã monitor thành tag monitor_id",
+        "is_enabled": true,
+        "sources": [
+          "monitor_id"
+        ],
+        "source_type": "attribute",
+        "target": "monitor_id",
+        "target_type": "tag",
+        "preserve_source": true,
+        "override_on_conflict": false
+      },
+      {
+        "type": "attribute-remapper",
+        "name": "Mã claim thành tag claim_id",
+        "is_enabled": true,
+        "sources": [
+          "claim_id"
+        ],
+        "source_type": "attribute",
+        "target": "claim_id",
+        "target_type": "tag",
+        "preserve_source": true,
+        "override_on_conflict": false
+      },
+      {
+        "type": "attribute-remapper",
+        "name": "Thao tác trên giao diện thành tag ui_event",
+        "is_enabled": true,
+        "sources": [
+          "event"
+        ],
+        "source_type": "attribute",
+        "target": "ui_event",
+        "target_type": "tag",
+        "preserve_source": true,
+        "override_on_conflict": false
+      }
+    ]
+  },
+  "metrics": [
+    {
+      "id": "shipaudit.biz.logs.claim_actions",
+      "compute": {
+        "aggregation_type": "count"
+      },
+      "filter": {
+        "query": "service:shipaudit-ui @event:claim_*"
+      },
+      "group_by": [
+        {
+          "path": "@event",
+          "tag_name": "ui_event"
+        },
+        {
+          "path": "@carrier",
+          "tag_name": "carrier"
+        }
+      ]
+    },
+    {
+      "id": "shipaudit.biz.logs.webhook_calls",
+      "compute": {
+        "aggregation_type": "count"
+      },
+      "filter": {
+        "query": "service:shipaudit-api @logger:shipaudit.webhook"
+      },
+      "group_by": [
+        {
+          "path": "@carrier",
+          "tag_name": "carrier"
+        }
+      ]
+    }
+  ]
+}

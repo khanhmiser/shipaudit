@@ -1,0 +1,33 @@
+# Theme giao diện ShipAudit theo bảng màu AML (docs/design/aml-ui.css), dark là mặc định.
+# Chạy `streamlit run ui/app.py` từ gốc repo để Streamlit đọc được file này.
+
+[theme]
+base = "dark"
+primaryColor = "#10b090"
+backgroundColor = "#0b1117"
+secondaryBackgroundColor = "#131b23"
+textColor = "#e6edf1"
+linkColor = "#6aa2f5"
+borderColor = "#1b2f35"
+dataframeBorderColor = "#162026"
+dataframeHeaderBackgroundColor = "#11171e"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "8px"
+redColor = "#d94848"
+orangeColor = "#f27a1a"
+yellowColor = "#e9a21a"
+greenColor = "#30b070"
+blueColor = "#4080e0"
+violetColor = "#8b7cf6"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+codeFont = "JetBrains Mono:https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&display=swap"
+chartCategoricalColors = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
+
+[theme.sidebar]
+backgroundColor = "#070d10"
+secondaryBackgroundColor = "#11171e"
+borderColor = "#1b2f35"
+
+[browser]
+gatherUsageStats = false

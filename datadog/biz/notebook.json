@@ -1,0 +1,156 @@
+{
+  "name": "ShipAudit [biz] Điều tra sự cố: chênh lệch tăng và sát hạn khiếu nại",
+  "status": "published",
+  "time": {"live_span": "1d"},
+  "cells": [
+    {
+      "definition": {
+        "type": "markdown",
+        "text": "# Điều tra sự cố chênh lệch cước\n\nDùng khi monitor **ShipAudit [biz]** báo động: tiền doanh nghiệp nhận thiếu vượt ngưỡng, tăng bất thường, hoặc sắp hết hạn khiếu nại.\n\n**Cách dùng:** chỉnh khung thời gian (góc trên bên phải) quanh lúc monitor báo, rồi đi lần lượt 5 bước dưới đây. Vạch đứng trên đồ thị là sự kiện claim: tạo nháp, duyệt, gửi hãng, hãng hoàn tiền.\n\n- Danh sách dashboard: [$DD_APP/dashboard/lists?q=ShipAudit]($DD_APP/dashboard/lists?q=ShipAudit)\n- Giao diện xử lý (Streamlit): [$UI_URL/chenh-lech]($UI_URL/chenh-lech) · [$UI_URL/claims]($UI_URL/claims)\n\nDữ liệu tổng hợp, hãng giả định Carrier A/B/C; ngưỡng là kịch bản giả định. So sánh các hãng trên cùng thước đo, không xếp hạng hãng."
+      }
+    },
+    {
+      "definition": {
+        "type": "markdown",
+        "text": "## 1. Phát hiện: tiền nhận thiếu còn trong hạn, theo hãng\n\nHãng nào tăng, tăng từ lúc nào. Ngưỡng cảnh báo 10 triệu, nghiêm trọng 15 triệu VNĐ."
+      }
+    },
+    {
+      "graph_size": "l",
+      "definition": {
+        "type": "timeseries",
+        "title": "Tiền nhận thiếu còn trong hạn (VNĐ), theo hãng",
+        "show_legend": true,
+        "legend_layout": "auto",
+        "legend_columns": ["avg", "max", "value"],
+        "requests": [
+          {
+            "display_type": "line",
+            "response_format": "timeseries",
+            "formulas": [{"formula": "q1"}],
+            "queries": [{"data_source": "metrics", "name": "q1", "query": "sum:shipaudit.biz.diff_amount{!deadline:expired} by {carrier}"}]
+          }
+        ],
+        "markers": [
+          {"display_type": "error dashed", "label": "Ngưỡng nghiêm trọng (giả định)", "value": "y = 15000000"},
+          {"display_type": "warning dashed", "label": "Ngưỡng cảnh báo (giả định)", "value": "y = 10000000"}
+        ],
+        "events": [{"q": "tags:project:shipaudit"}]
+      }
+    },
+    {
+      "definition": {
+        "type": "markdown",
+        "text": "## 2. Có khoản nào sát hạn khiếu nại không\n\nGiờ còn lại của khoản gần hạn nhất, chặn trên 168 giờ (168 = không còn khoản nào cần gấp). Dưới 24 giờ: monitor gọi webhook tạo claim nháp."
+      }
+    },
+    {
+      "graph_size": "m",
+      "definition": {
+        "type": "timeseries",
+        "title": "Giờ còn lại tới hạn khiếu nại, theo hãng",
+        "show_legend": true,
+        "legend_layout": "auto",
+        "legend_columns": ["min", "value"],
+        "requests": [
+          {
+            "display_type": "line",
+            "response_format": "timeseries",
+            "formulas": [{"formula": "q1"}],
+            "queries": [{"data_source": "metrics", "name": "q1", "query": "min:shipaudit.biz.claim_hours_left{*} by {carrier}"}]
+          }
+        ],
+        "markers": [
+          {"display_type": "error dashed", "label": "24 giờ", "value": "y = 24"},
+          {"display_type": "warning dashed", "label": "48 giờ", "value": "y = 48"}
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "markdown",
+        "text": "## 3. Điều tra: loại chênh lệch nào\n\nCùng một bảng kê thường có một kiểu sai lặp lại (ví dụ ghi thiếu tiền thu hộ ở nhiều đơn). Mở màn **Chênh lệch** trên Streamlit, lọc hãng, xem từng đơn và lý do lệch theo quy tắc hãng."
+      }
+    },
+    {
+      "graph_size": "m",
+      "definition": {
+        "type": "toplist",
+        "title": "Tiền nhận thiếu còn trong hạn, theo hãng và loại chênh lệch",
+        "requests": [
+          {
+            "response_format": "scalar",
+            "formulas": [{"formula": "q1", "limit": {"count": 15, "order": "desc"}}],
+            "queries": [{"data_source": "metrics", "name": "q1", "aggregator": "last", "query": "sum:shipaudit.biz.diff_amount{!deadline:expired} by {carrier,diff_type}"}]
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "markdown",
+        "text": "## 4. Cảnh báo đã tạo claim nháp chưa\n\nLog của webhook `POST /webhooks/datadog`: mã cảnh báo (`alert_id`), monitor, hãng, số claim nháp đã tạo. Gọi lại cùng một cảnh báo không tạo thêm claim. Lọc theo hãng bằng tag `carrier:carrier_b`."
+      }
+    },
+    {
+      "graph_size": "l",
+      "definition": {
+        "type": "log_stream",
+        "indexes": [],
+        "query": "service:shipaudit-api @logger:shipaudit.webhook",
+        "columns": ["carrier", "alert_id", "monitor_id", "count", "amount"],
+        "show_date_column": true,
+        "show_message_column": true,
+        "message_display": "inline",
+        "sort": {"column": "time", "order": "desc"}
+      }
+    },
+    {
+      "definition": {
+        "type": "markdown",
+        "text": "## 5. Xử lý: duyệt, gửi hãng, hãng hoàn tiền\n\nCon người duyệt claim trên giao diện trước khi gửi hãng. Sau khi gửi, khoản đó không còn tính vào tiền nhận thiếu; tiền chờ hãng phản hồi và tiền đã thu hồi theo dõi ở đây."
+      }
+    },
+    {
+      "graph_size": "m",
+      "definition": {
+        "type": "timeseries",
+        "title": "Tiền đã khiếu nại theo trạng thái claim và tiền đã thu hồi (VNĐ)",
+        "show_legend": true,
+        "legend_layout": "auto",
+        "legend_columns": ["value"],
+        "requests": [
+          {
+            "display_type": "line",
+            "response_format": "timeseries",
+            "formulas": [{"formula": "q1"}, {"alias": "Đã thu hồi", "formula": "q2"}],
+            "queries": [
+              {"data_source": "metrics", "name": "q1", "query": "sum:shipaudit.biz.claim_amount{*} by {claim_status}"},
+              {"data_source": "metrics", "name": "q2", "query": "sum:shipaudit.biz.recovered_amount{*}"}
+            ]
+          }
+        ],
+        "events": [{"q": "tags:project:shipaudit"}]
+      }
+    },
+    {
+      "graph_size": "l",
+      "definition": {
+        "type": "log_stream",
+        "indexes": [],
+        "query": "service:shipaudit-ui @event:claim_*",
+        "columns": ["event", "carrier", "claim_id", "amount", "by"],
+        "show_date_column": true,
+        "show_message_column": false,
+        "message_display": "inline",
+        "sort": {"column": "time", "order": "desc"}
+      }
+    },
+    {
+      "definition": {
+        "type": "markdown",
+        "text": "## Kết luận (điền khi điều tra xong)\n\n- Hãng: \n- Bảng kê, kỳ: \n- Loại chênh lệch chính, số đơn, số tiền: \n- Thời điểm phát hiện, thời điểm tạo claim, thời điểm gửi hãng: \n- Kết quả: đã thu hồi / hãng từ chối / còn chờ phản hồi \n- Việc phòng ngừa (ví dụ đối chiếu sớm hơn với hãng này): "
+      }
+    }
+  ]
+}

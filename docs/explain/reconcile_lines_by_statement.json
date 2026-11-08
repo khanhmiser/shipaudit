@@ -1,0 +1,114 @@
+{
+ "explainVersion": "1",
+ "queryPlanner": {
+  "namespace": "shipaudit_b_dev.statement_lines",
+  "parsedQuery": {
+   "statement_id": {
+    "$eq": "STM-B-2026W42"
+   }
+  },
+  "indexFilterSet": false,
+  "queryHash": "574FFA82",
+  "planCacheShapeHash": "574FFA82",
+  "planCacheKey": "FD055115",
+  "optimizationTimeMillis": 0,
+  "maxIndexedOrSolutionsReached": false,
+  "maxIndexedAndSolutionsReached": false,
+  "maxScansToExplodeReached": false,
+  "prunedSimilarIndexes": false,
+  "winningPlan": {
+   "isCached": false,
+   "stage": "FETCH",
+   "inputStage": {
+    "stage": "IXSCAN",
+    "keyPattern": {
+     "statement_id": 1,
+     "order_code": 1
+    },
+    "indexName": "statement_order",
+    "isMultiKey": false,
+    "multiKeyPaths": {
+     "statement_id": [],
+     "order_code": []
+    },
+    "isUnique": false,
+    "isSparse": false,
+    "isPartial": false,
+    "indexVersion": 2,
+    "direction": "forward",
+    "indexBounds": {
+     "statement_id": [
+      "[\"STM-B-2026W42\", \"STM-B-2026W42\"]"
+     ],
+     "order_code": [
+      "[MinKey, MaxKey]"
+     ]
+    }
+   }
+  },
+  "rejectedPlans": []
+ },
+ "executionStats": {
+  "executionSuccess": true,
+  "nReturned": 735,
+  "executionTimeMillis": 1,
+  "totalKeysExamined": 735,
+  "totalDocsExamined": 735,
+  "executionStages": {
+   "isCached": false,
+   "stage": "FETCH",
+   "nReturned": 735,
+   "executionTimeMillisEstimate": 2,
+   "works": 736,
+   "advanced": 735,
+   "needTime": 0,
+   "needYield": 0,
+   "saveState": 0,
+   "restoreState": 0,
+   "isEOF": 1,
+   "docsExamined": 735,
+   "alreadyHasObj": 0,
+   "inputStage": {
+    "stage": "IXSCAN",
+    "nReturned": 735,
+    "executionTimeMillisEstimate": 1,
+    "works": 736,
+    "advanced": 735,
+    "needTime": 0,
+    "needYield": 0,
+    "saveState": 0,
+    "restoreState": 0,
+    "isEOF": 1,
+    "keyPattern": {
+     "statement_id": 1,
+     "order_code": 1
+    },
+    "indexName": "statement_order",
+    "isMultiKey": false,
+    "multiKeyPaths": {
+     "statement_id": [],
+     "order_code": []
+    },
+    "isUnique": false,
+    "isSparse": false,
+    "isPartial": false,
+    "indexVersion": 2,
+    "direction": "forward",
+    "indexBounds": {
+     "statement_id": [
+      "[\"STM-B-2026W42\", \"STM-B-2026W42\"]"
+     ],
+     "order_code": [
+      "[MinKey, MaxKey]"
+     ]
+    },
+    "keysExamined": 735,
+    "seeks": 1,
+    "dupsTested": 0,
+    "dupsDropped": 0
+   }
+  }
+ },
+ "queryShapeHash": "D0F6F22421B0AA5091AF6B446AD680A1B496F47732EE4AFE3E35E195E79392AB",
+ "ok": 1.0
+}

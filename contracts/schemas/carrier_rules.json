@@ -20,7 +20,7 @@
     },
     "surcharges": {
       "type": "object",
-      "description": "insurance_pct, return_pct, storage_per_day, address_change, inspection..."
+      "description": "insurance{rate_bp,min_declared_value,round_unit,round_mode}, return{rate_bp,fixed,flat_by_region,round_unit,round_mode}, storage{per_day,free_days}, address_change{fixed}, inspection{fixed}. round_unit là bội số đồng (mặc định 1), round_mode là half_up (mặc định) hoặc half_even. flat_by_region: phí hoàn cố định thay cho fixed + rate_bp ở vùng đó"
     },
     "cod_payout_days": {
       "type": "integer",
@@ -30,6 +30,8 @@
       "type": "integer",
       "description": "Hạn khiếu nại tính bằng giờ (có hãng chỉ 24h)"
     },
+    "claim_deadline_anchor": {"type": "string", "enum": ["statement_received_at", "delivered_at"], "default": "statement_received_at", "description": "Mốc tính hạn khiếu nại: lúc nhận bảng kê (mặc định) hoặc ngày giao đơn. Không có trường này thì là statement_received_at"},
+    "payout_basis": {"type": "string", "enum": ["delivered_plus_days", "period_end"], "default": "delivered_plus_days", "description": "Cách xác định kỳ bảng kê chứa đơn: delivered_plus_days = kỳ chứa (ngày giao + cod_payout_days); period_end = bảng kê theo kỳ giao hàng, hãng trả tiền sau cuối kỳ cod_payout_days ngày. Đơn có ở bảng kê kỳ sau kỳ này là LATE_PAYOUT"},
     "transfer_fee": {
       "type": "integer"
     },

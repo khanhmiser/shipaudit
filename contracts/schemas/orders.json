@@ -45,8 +45,14 @@
     },
     "delivered_at": {
       "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "description": "Ngày giao. Đơn thất lạc (LOST) chưa từng giao nên không có"
     },
+    "storage_days": {"type": "integer", "description": "Số ngày hàng nằm kho hãng (tùy chọn, mặc định 0)"},
+    "address_changes": {"type": "integer", "description": "Số lần đổi địa chỉ giao (tùy chọn, mặc định 0)"},
+    "inspection": {"type": "boolean", "description": "Có đồng kiểm (tùy chọn, mặc định false)"},
+    "return_fee_paid_by_shop": {"type": "integer", "description": "Phí trả hàng doanh nghiệp đã nộp trước (tùy chọn, mặc định 0)"},
+    "promotion": {"type": "integer", "description": "Khuyến mãi của hãng (tùy chọn, mặc định 0)"},
     "source": {
       "enum": [
         "olist",

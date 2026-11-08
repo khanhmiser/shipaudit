@@ -1,34 +1,111 @@
-# Hạ tầng do A phụ trách. MongoDB dùng Atlas (MONGO_URI trong .env).
+# Hạ tầng do A phụ trách. MongoDB dùng Atlas (MONGO_URI trong .env), không có container Mongo.
+# Chạy: cp .env.example .env (điền MONGO_URI, DD_API_KEY) rồi `docker compose up --build` (hoặc `make up`).
+# Có Agent nên telemetry đi qua Agent: metric qua DogStatsD, trace qua APM (cổng 8126), log đọc từ stdout
+# của container. Vì vậy chế độ "agentless" (gửi thẳng API, dùng khi chạy trên máy không Docker) bị tắt ở đây.
+x-app: &app
+  build:
+    context: .
+    dockerfile: app/Dockerfile
+  image: shipaudit-app:dev
+  env_file: .env
+  environment: &app-env
+    DD_AGENT_HOST: datadog-agent      # ddtrace và DogStatsD gửi về Agent trong compose
+    DD_DOGSTATSD_PORT: "8125"
+    DD_TRACE_AGENT_PORT: "8126"
+    DD_TRACE_ENABLED: "true"
+    DD_LOGS_INJECTION: "true"         # gắn dd.trace_id vào log để nối log với trace
+    DD_METRICS_AGENTLESS: "false"
+    DD_LOGS_AGENTLESS: "false"
+    DD_ENV: ${DD_ENV:-dev}
+    DD_VERSION: ${DD_VERSION:-0.1.0}
+    UPLOAD_DIR: /srv/data/uploads
+  restart: unless-stopped
+
 services:
   api:
-    build:
-      context: .
-      dockerfile: app/Dockerfile
+    <<: *app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
-    env_file: .env
+    environment:
+      <<: *app-env
+      DD_SERVICE: shipaudit-api
     ports:
       - "8000:8000"
+    volumes:
+      - ./data/uploads:/srv/data/uploads   # file bảng kê đã nạp, giữ lại để truy vết
+    depends_on:
+      - datadog-agent
+    healthcheck:
+      # Ảnh python:slim không có curl nên dùng urllib. /health ping Mongo, lỗi thì 503.
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=4).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "python", "service": "shipaudit-api"}]'
+      com.datadoghq.tags.service: shipaudit-api
+      com.datadoghq.tags.env: ${DD_ENV:-dev}
+      com.datadoghq.tags.version: ${DD_VERSION:-0.1.0}
+
+  worker:
+    <<: *app
+    # A5: nghe change stream của reconciliations, log JSON + metric khi có chênh lệch mới.
+    command: python -m app.workers.change_stream
+    environment:
+      <<: *app-env
+      DD_SERVICE: shipaudit-worker
     depends_on:
       - datadog-agent
     labels:
-      com.datadoghq.ad.logs: '[{"source": "python", "service": "shipaudit-api"}]'
+      com.datadoghq.ad.logs: '[{"source": "python", "service": "shipaudit-worker"}]'
+      com.datadoghq.tags.service: shipaudit-worker
+      com.datadoghq.tags.env: ${DD_ENV:-dev}
+      com.datadoghq.tags.version: ${DD_VERSION:-0.1.0}
+
+  metrics-job:
+    <<: *app
+    # B9: mỗi 60 giây phát shipaudit.biz.* (diff_amount, diff_count, claim_hours_left) cho monitor nghiệp vụ.
+    # Gửi thẳng Metrics API bằng DD_API_KEY (core/metrics_sink.py), không phụ thuộc Agent; thiếu khóa thì in console.
+    command: python -m core.metrics_job
+    environment:
+      <<: *app-env
+      DD_SERVICE: shipaudit-metrics-job
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "python", "service": "shipaudit-metrics-job"}]'
+      com.datadoghq.tags.service: shipaudit-metrics-job
+      com.datadoghq.tags.env: ${DD_ENV:-dev}
+      com.datadoghq.tags.version: ${DD_VERSION:-0.1.0}
 
   ui:
-    build:
-      context: .
-      dockerfile: app/Dockerfile
-    command: streamlit run ui/app.py --server.port 8501 --server.address 0.0.0.0
-    env_file: .env
+    <<: *app
+    command: streamlit run ui/app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
+    environment:
+      <<: *app-env
+      DD_SERVICE: shipaudit-ui
     ports:
       - "8501:8501"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=4).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "python", "service": "shipaudit-ui"}]'
+      com.datadoghq.tags.service: shipaudit-ui
+      com.datadoghq.tags.env: ${DD_ENV:-dev}
+      com.datadoghq.tags.version: ${DD_VERSION:-0.1.0}
 
   datadog-agent:
     image: gcr.io/datadoghq/agent:7
     environment:
       - DD_API_KEY=${DD_API_KEY}
-      - DD_SITE=${DD_SITE:-datadoghq.com}
+      - DD_SITE=${DD_SITE:-uk1.datadoghq.com}
+      - DD_ENV=${DD_ENV:-dev}
+      - DD_HOSTNAME=${DD_HOSTNAME:-shipaudit-demo}
       - DD_LOGS_ENABLED=true
       - DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true
+      - DD_CONTAINER_EXCLUDE_LOGS=name:datadog-agent
       - DD_APM_ENABLED=true
       - DD_APM_NON_LOCAL_TRAFFIC=true
       - DD_DOGSTATSD_NON_LOCAL_TRAFFIC=true
@@ -39,3 +116,4 @@ services:
     ports:
       - "8125:8125/udp"
       - "8126:8126"
+    restart: unless-stopped

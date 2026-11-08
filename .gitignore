@@ -6,8 +6,13 @@ __pycache__/
 *.egg-info/
 data/raw/*
 !data/raw/.gitkeep
+data/uploads/*
+!data/uploads/.gitkeep
 generator/out/*
 !generator/out/.gitkeep
 .DS_Store
 .idea/
 .vscode/
+
+# Secrets của Streamlit (bản demo trên Community Cloud), không commit
+.streamlit/secrets.toml
