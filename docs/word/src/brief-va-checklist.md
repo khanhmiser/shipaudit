@@ -48,11 +48,11 @@ Không đáp ứng đủ yêu cầu bắt buộc thì không được đưa vào
 |------|---------------------------------|------------------------------|-------------------------------|
 | 1 | Tên dự án và mô tả bài toán | Hồ sơ dự án (file Word số 01) | Đã có bản chốt |
 | 2 | Thông tin đội và đầu mối liên hệ | Chưa có file | Chưa làm, còn thiếu tên A và trưởng đội |
-| 3 | Kiến trúc giải pháp và ứng dụng | Hồ sơ dự án, mục Giải pháp kỹ thuật | Có văn bản, chưa có sơ đồ trong repo |
-| 4 | Kiến trúc dữ liệu và data model MongoDB | contracts/schemas/ và sơ đồ data model | Có schema, chưa có sơ đồ |
+| 3 | Kiến trúc giải pháp và ứng dụng | Hồ sơ dự án, mục Giải pháp kỹ thuật | Có văn bản và sơ đồ Mermaid trong repo (`docs/architecture.md` mục 1, 2), 8/11 |
+| 4 | Kiến trúc dữ liệu và data model MongoDB | contracts/schemas/ và `docs/architecture.md` mục 3 | Có schema và sơ đồ ER (8/11) |
 | 5 | Kiến trúc observability trên Datadog | datadog/ops/, datadog/biz/ | Đang làm: `datadog/biz/` và `datadog/ops/` có dashboard, monitor, `apply.py`, README, `deployed.json` (22/10) |
-| 6 | Repository mã nguồn và hướng dẫn cài đặt | github.com/khanhmiser/shipaudit | Có khung. Nếu để private, phải cấp quyền cho tài khoản giám khảo |
-| 7 | README: môi trường, triển khai, cấu hình, kiểm thử | README.md | Có bản ngắn, chưa hoàn chỉnh |
+| 6 | Repository mã nguồn và hướng dẫn cài đặt | github.com/khanhmiser/shipaudit | Code đã vào `main` (PR #1, 8/11). Repo đang private (API GitHub trả 404 khi chưa đăng nhập): còn phải mời tài khoản giám khảo hoặc chuyển public |
+| 7 | README: môi trường, triển khai, cấu hình, kiểm thử | README.md | Đã có: cách chạy, Docker, kịch bản, Datadog, bảng tài liệu chính, link kiến trúc (8/11). Còn: xác nhận lại bằng một lần clone sạch |
 | 8 | MVP chạy được hoặc bản demo truy cập được | docker compose up | Đang làm: chạy được trên máy không Docker (API, worker, UI, job metric); Dockerfile và compose đã sửa 23/10, chưa chạy `docker compose up` 30/10: bản demo cho giám khảo đã chuẩn bị (giao diện chỉ xem, sẵn sàng Streamlit Community Cloud, `scripts/demo.ps1`, `docs/demo-cho-giam-khao.md`); link tạm qua tunnel đã chạy thử. Còn: đẩy repo, triển khai, người dùng Atlas chỉ đọc. |
 | 9 | Video demo | Chưa có | Chưa làm 30/10: kịch bản quay đã viết (`docs/demo-cho-giam-khao.md` mục 5); phải quay trước khi trial Datadog hết (khoảng 1/11). |
 | 10 | Slide thuyết trình chung kết | Chưa có | Chưa làm (cần khi vào chung kết) |

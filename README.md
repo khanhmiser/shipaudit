@@ -6,6 +6,17 @@ so với **số tiền thực nhận**, cảnh báo chênh lệch theo hạn khi
 MUGVN Hackathon 2026 · Real-time Operations (MongoDB x Datadog).
 Chỉ dùng dữ liệu tổng hợp hoặc dataset công khai. Hãng vận chuyển trong demo là hãng giả (Carrier A/B/C).
 
+## Tài liệu chính
+
+| Cần xem | Ở đâu |
+|---|---|
+| Kiến trúc tổng thể, luồng dữ liệu, data model MongoDB, kiến trúc Datadog (sơ đồ) | [`docs/architecture.md`](docs/architecture.md) |
+| Hợp đồng giữa hai phần (giao diện, schema, mẫu CSV) | [`contracts/README.md`](contracts/README.md) |
+| Quyết định đã chốt, nghiệp vụ, giải pháp | [`docs/context/`](docs/context/00-README.md), [`docs/decisions.md`](docs/decisions.md) |
+| Datadog: dashboard, monitor, SLO, notebook | [`datadog/biz/README.md`](datadog/biz/README.md), [`datadog/ops/README.md`](datadog/ops/README.md) |
+| Bản demo cho giám khảo, kịch bản video | [`docs/demo-cho-giam-khao.md`](docs/demo-cho-giam-khao.md), [`docs/kich-ban-video-demo.md`](docs/kich-ban-video-demo.md) |
+| Công cụ AI đã dùng, thư viện và dataset ngoài | [`docs/ai-usage-log.md`](docs/ai-usage-log.md), [`docs/reuse-and-data.md`](docs/reuse-and-data.md) |
+
 ## Phân công
 
 | | Phạm vi | Thư mục chính |
@@ -13,7 +24,7 @@ Chỉ dùng dữ liệu tổng hợp hoặc dataset công khai. Hãng vận chuy
 | **A** | Đường ống và quan sát: nạp dữ liệu, API, Change Streams, telemetry, Datadog vận hành, webhook | `app/`, `datadog/ops/`, `scenarios/ops/` |
 | **B** | Đúng sai của con số: dữ liệu, quy tắc hãng, engine, pipeline, Streamlit, Datadog nghiệp vụ | `core/`, `pipelines/`, `generator/`, `ui/`, `datadog/biz/`, `scenarios/biz/` |
 
-Chi tiết: `docs/ShipAudit_Ke-hoach-ky-thuat_AB.docx`. Tiến độ cập nhật ở mục 10 của file đó.
+Chi tiết: `docs/context/05-ke-hoach-ky-thuat-AB.md` (bản Word: `docs/word/ShipAudit_03_Ke-hoach-ky-thuat_AB.docx`). Tiến độ: `docs/word/src/theo-doi-tien-do.md`.
 
 ## Quy tắc ngắn
 
@@ -129,4 +140,4 @@ nhờ `DD_LOGS_INJECTION`. Trên Windows cần bật Docker Desktop trước. Ki
 
 ## Cấu trúc
 
-Xem `docs/ShipAudit_Ke-hoach-ky-thuat_AB.docx` mục 7. Mỗi thư mục có docstring ở file chính nêu việc của nó.
+Bảng ánh xạ thư mục ở [`docs/architecture.md`](docs/architecture.md) mục 5. Mỗi thư mục có docstring ở file chính nêu việc của nó.
