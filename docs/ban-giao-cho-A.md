@@ -99,3 +99,11 @@ Hạn nộp gia hạn đến 8/11. B chạy thật Datadog và Atlas không dùn
 - **Datadog**: B mời A vào tổ chức `uk1.datadoghq.com`; A tự tạo API key của mình (và Application key nếu cần chạy `datadog/*/apply.py`). Không gửi khóa của B qua chat hay email.
 - **Atlas**: B thêm IP của A vào Network Access và gửi thông tin đăng nhập qua trình quản lý mật khẩu. A dùng database riêng khi phát triển (không dùng `shipaudit_b_dev`).
 - Sau khi nộp: đặt lại mật khẩu người dùng Atlas `shipaudit` (mật khẩu từng xuất hiện trong khung chat) và xóa key không dùng.
+
+## 8. Cập nhật 09/11/2026: Datadog chuyển sang tổ chức mới (A xem lại)
+
+- **Site đổi:** tổ chức uk1 hết thời gian dùng thử. Đội dựng lại Datadog nghiệp vụ trên tổ chức mới, site `datadoghq.com` (US1). `.env.example` đã đổi `DD_SITE=datadoghq.com`. Trong `.env` của A cần đặt cùng giá trị, kèm khóa API và Application Key của tổ chức mới (không đưa vào repo).
+- **ID đối tượng đổi:** xem `datadog/biz/deployed.json` (monitor, SLO, notebook, dashboard `wbi-fix-kq8`).
+- **Chưa có webhook `shipaudit-claims`** trên tổ chức mới, nên các monitor chưa gọi API claim. Muốn gắn lại: mở tunnel hoặc dùng địa chỉ API công khai, tạo webhook `shipaudit-claims` (Integrations → Webhooks) trỏ tới `/webhooks/...` của API (xem `datadog/ops/README.md`), rồi chạy `python datadog/biz/apply.py --notify @webhook-shipaudit-claims`.
+- **Chưa có Case Management** (`@case-shipaudit`) ở tổ chức mới. Tạo project rồi chạy `apply.py --case-handle @case-<handle>`.
+- Monitor và dashboard vận hành trong `datadog/ops/` chưa được dựng lại trên tổ chức mới. A chạy `python datadog/ops/apply.py` nếu cần.
