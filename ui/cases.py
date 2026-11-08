@@ -10,7 +10,8 @@ from datetime import datetime
 from ui import view
 from ui.view import esc
 
-TABS = (("all", "Tất cả"), ("soon", "Sắp hết hạn"), ("claiming", "Đang khiếu nại"), ("recovered", "Đã thu hồi"))
+TABS = (("all", "Tất cả"), ("soon", "Sắp hết hạn"), ("claiming", "Đang khiếu nại"), ("recovered", "Đã thu hồi"),
+        ("rejected", "Bị từ chối"))
 CLAIM_TONES = {"DRAFT": "muted", "APPROVED": "info", "SUBMITTED": "accent", "RECOVERED": "success",
                "REJECTED": "danger", "EXPIRED": "muted"}
 
@@ -35,6 +36,8 @@ def in_tab(rec: dict, tab: str, claims: dict[str, dict], now: datetime) -> bool:
         return status in ("DRAFT", "APPROVED", "SUBMITTED")
     if tab == "recovered":
         return status == "RECOVERED"
+    if tab == "rejected":
+        return status == "REJECTED"
     return True
 
 
@@ -52,6 +55,30 @@ def priority(rec: dict, now: datetime) -> tuple:
     if is_claimable(rec, now):
         return (0, view.hours_left(rec["claim_deadline_at"], now), -rec["diff"])
     return (1, 0, -abs(rec.get("diff", 0)))
+
+
+SORTS = (("urgent", "Gần hạn trước (mặc định)"), ("late_most", "Quá hạn lâu nhất trước"),
+         ("late_least", "Quá hạn mới nhất trước"), ("diff_desc", "Chênh lệch lớn nhất trước"),
+         ("code_az", "Mã đơn A → Z"), ("code_za", "Mã đơn Z → A"))
+
+
+def sort_cases(recs: list[dict], sort: str, now: datetime) -> list[dict]:
+    """Sắp xếp danh sách. Với kiểu "quá hạn", khoản đã quá hạn lên trước (theo số ngày quá hạn), khoản còn hạn xếp sau."""
+    def late_hours(r: dict) -> float:  # > 0: đã quá hạn bấy nhiêu giờ; khoản không có hạn hoặc không thiếu tiền: -inf
+        h = view.hours_left(r.get("claim_deadline_at"), now)
+        return -h if h is not None and r.get("diff", 0) > 0 else float("-inf")
+
+    if sort == "late_most":
+        return sorted(recs, key=lambda r: (-late_hours(r), r["order_code"]))
+    if sort == "late_least":
+        return sorted(recs, key=lambda r: (late_hours(r) <= 0, late_hours(r), r["order_code"]))
+    if sort == "diff_desc":
+        return sorted(recs, key=lambda r: (-r.get("diff", 0), r["order_code"]))
+    if sort == "code_az":
+        return sorted(recs, key=lambda r: r["order_code"].lower())
+    if sort == "code_za":
+        return sorted(recs, key=lambda r: r["order_code"].lower(), reverse=True)
+    return sorted(recs, key=lambda r: priority(r, now))
 
 
 def level_cell(rec: dict, claims: dict[str, dict], now: datetime) -> str:

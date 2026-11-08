@@ -4,12 +4,16 @@ Con người duyệt trước khi gửi hãng. create_draft idempotent theo aler
 Vòng đời (common.enums.ClaimStatus):
     DRAFT ──approve(người duyệt)──> APPROVED ──submit──> SUBMITTED ──> RECOVERED | REJECTED
       └───────────── quá hạn khiếu nại ─────────────> EXPIRED (chỉ DRAFT / APPROVED)
+    REJECTED ──(doanh nghiệp tự liên hệ hãng, hãng đồng ý hoàn)──> RECOVERED
 - Không duyệt, không gửi khi đã quá hạn khiếu nại. `submit` chỉ ghi nhận đã gửi; việc gửi hãng do người làm.
 - Mỗi lần đổi trạng thái ghi vào `history` (ai, lúc nào) để truy vết.
 - Idempotent: cùng `alert_id` + cùng đối soát chỉ ra một claim (index unique, an toàn khi webhook gửi trùng
   cùng lúc). Ngoài ra một đối soát chỉ có một claim đang mở (DRAFT / APPROVED / SUBMITTED), dù tạo tay
   hay từ webhook: gọi lại thì trả về claim đang mở đó.
 - Số tiền claim = chênh lệch của bản ghi đối soát (phải nhận − thực nhận), phải > 0.
+- Khoản đã có kết quả (hãng hoàn tiền hoặc từ chối) không khiếu nại lại trong hệ thống, kể cả từ webhook. Hãng từ
+  chối thì doanh nghiệp tự liên hệ hãng; mỗi lần trao đổi ghi vào `followups` (add_followup) để theo dõi. Lý do từ
+  chối bắt buộc ghi.
 """
 from __future__ import annotations
 
@@ -25,10 +29,14 @@ from core.periods import as_aware, to_db
 
 SOURCES = ("manual", "datadog_webhook")
 OPEN_STATUSES = (ClaimStatus.DRAFT.value, ClaimStatus.APPROVED.value, ClaimStatus.SUBMITTED.value)
+# Đã có kết quả từ hãng: không tạo claim mới cho cùng khoản
+RESOLVED_STATUSES = (ClaimStatus.RECOVERED.value, ClaimStatus.REJECTED.value)
+# Còn trao đổi với hãng: được ghi nhật ký theo dõi
+FOLLOWUP_STATUSES = (ClaimStatus.SUBMITTED.value, ClaimStatus.REJECTED.value)
 TRANSITIONS: dict[str, tuple[str, ...]] = {
     ClaimStatus.APPROVED.value: (ClaimStatus.DRAFT.value,),
     ClaimStatus.SUBMITTED.value: (ClaimStatus.APPROVED.value,),
-    ClaimStatus.RECOVERED.value: (ClaimStatus.SUBMITTED.value,),
+    ClaimStatus.RECOVERED.value: (ClaimStatus.SUBMITTED.value, ClaimStatus.REJECTED.value),
     ClaimStatus.REJECTED.value: (ClaimStatus.SUBMITTED.value,),
     ClaimStatus.EXPIRED.value: (ClaimStatus.DRAFT.value, ClaimStatus.APPROVED.value),
 }
@@ -64,6 +72,12 @@ class ClaimService:
         existing = self.claims.find_one({"reconciliation_id": reconciliation_id, "status": {"$in": OPEN_STATUSES}})
         if existing:
             return _clean(existing)
+        resolved = self.claims.find_one({"reconciliation_id": reconciliation_id, "status": {"$in": RESOLVED_STATUSES}})
+        if resolved and resolved["status"] == ClaimStatus.RECOVERED.value:  # hãng đã hoàn tiền: không khiếu nại lại
+            raise ClaimError(f"{reconciliation_id}: hãng đã hoàn tiền (claim {resolved['claim_id']}), không khiếu nại lại")
+        if resolved:  # hãng đã từ chối: doanh nghiệp tự liên hệ hãng, theo dõi trên claim cũ
+            raise ClaimError(f"{reconciliation_id}: hãng đã từ chối (claim {resolved['claim_id']}); "
+                             "liên hệ hãng và ghi nhật ký theo dõi trên claim đó, không tạo claim mới")
 
         rec = self.db[Collections.RECONCILIATIONS].find_one({"reconciliation_id": reconciliation_id})
         if rec is None:
@@ -106,12 +120,15 @@ class ClaimService:
         Dùng khi alert Datadog chỉ cho biết hãng (tag carrier), không chỉ ra từng đơn.
         """
         now = self.now()
+        resolved = set(self.claims.distinct("reconciliation_id",
+                                            {"carrier": carrier, "status": {"$in": RESOLVED_STATUSES}}))
         recs = self.db[Collections.RECONCILIATIONS].find(
             {"carrier": carrier, "diff": {"$gt": 0}, "diff_type": {"$ne": "NONE"},
              "claim_deadline_at": {"$gt": to_db(now), "$lte": to_db(now + timedelta(hours=within_hours))}},
             {"reconciliation_id": 1},
         ).sort("reconciliation_id", 1)
-        return [self.create_draft(r["reconciliation_id"], source, alert_id) for r in recs]
+        return [self.create_draft(r["reconciliation_id"], source, alert_id) for r in recs
+                if r["reconciliation_id"] not in resolved]
 
     # ── Đổi trạng thái ──
     def _move(self, claim_id: str, to: str, by: str, extra: dict | None = None, check_deadline: bool = False) -> dict:
@@ -150,8 +167,38 @@ class ClaimService:
         return self._move(claim_id, ClaimStatus.RECOVERED.value, by,
                           {"recovered_amount": recovered_amount, "resolved_at": to_db(self.now())})
 
-    def mark_rejected(self, claim_id: str, by: str, note: str = "") -> dict:
-        return self._move(claim_id, ClaimStatus.REJECTED.value, by, {"note": note, "resolved_at": to_db(self.now())})
+    def mark_rejected(self, claim_id: str, by: str, note: str) -> dict:
+        """Hãng từ chối. Bắt buộc ghi lý do hãng đưa ra (để theo dõi và liên hệ lại)."""
+        if not by or not by.strip():
+            raise ClaimError("phải ghi tên người ghi nhận")
+        if not note or not note.strip():
+            raise ClaimError("phải ghi lý do hãng từ chối")
+        return self._move(claim_id, ClaimStatus.REJECTED.value, by.strip(),
+                          {"note": note.strip(), "resolved_at": to_db(self.now())})
+
+    def add_followup(self, claim_id: str, by: str, note: str, next_contact_at: datetime | None = None) -> dict:
+        """Ghi một lần trao đổi với hãng (claim đã gửi hãng hoặc bị từ chối): ai, lúc nào, nội dung, hẹn liên hệ lại."""
+        if not by or not by.strip():
+            raise ClaimError("phải ghi tên người theo dõi")
+        if not note or not note.strip():
+            raise ClaimError("phải ghi nội dung trao đổi với hãng")
+        claim = self.get(claim_id)
+        if claim is None:
+            raise ClaimError(f"không có claim {claim_id!r}")
+        if claim["status"] not in FOLLOWUP_STATUSES:
+            raise ClaimError(f"{claim_id}: chỉ theo dõi claim đã gửi hãng hoặc bị từ chối (đang là {claim['status']})")
+        now = to_db(self.now())
+        entry = {"at": now, "by": by.strip(), "note": note.strip(),
+                 "next_contact_at": to_db(next_contact_at) if next_contact_at else None}
+        updated = self.claims.find_one_and_update(
+            {"claim_id": claim_id, "status": {"$in": list(FOLLOWUP_STATUSES)}},
+            {"$push": {"followups": entry},
+             "$set": {"last_followup_at": now, "next_contact_at": entry["next_contact_at"]}},
+            return_document=ReturnDocument.AFTER,
+        )
+        if updated is None:
+            raise ClaimError(f"{claim_id}: trạng thái vừa thay đổi, tải lại rồi thử lại")
+        return _clean(updated)
 
     def expire_overdue(self) -> int:
         """Chuyển DRAFT / APPROVED đã quá hạn khiếu nại sang EXPIRED. Trả về số claim bị đổi."""

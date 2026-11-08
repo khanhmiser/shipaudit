@@ -46,8 +46,16 @@ streamlit run ui/app.py                                   # B: giao diện
 python -m core.metrics_job                                # B: metric shipaudit.biz.* mỗi 60 giây
 ```
 
-Không có Datadog Agent: metric gửi thẳng Datadog API khi có `DD_API_KEY`; đặt `DD_LOGS_AGENTLESS=true` để log lên
-Log Management. Trace (APM) cần Agent.
+Không có Datadog Agent: metric gửi thẳng Datadog API khi có `DD_API_KEY`; đặt `DD_LOGS_AGENTLESS=true` để log của API
+và giao diện lên Log Management, `SHIPAUDIT_DD_EVENTS=true` để mỗi thao tác claim (tạo nháp, duyệt, gửi hãng, hãng hoàn
+tiền) thành một sự kiện trên Datadog, hiện thành vạch đứng trên đồ thị. Ví dụ:
+
+```bash
+DD_LOGS_AGENTLESS=true SHIPAUDIT_DD_EVENTS=true uvicorn app.main:app --port 8000
+DD_LOGS_AGENTLESS=true SHIPAUDIT_DD_EVENTS=true streamlit run ui/app.py
+```
+
+Trace (APM) cần Agent.
 
 Thử API:
 
@@ -56,6 +64,20 @@ curl http://localhost:8000/health
 curl -F carrier=carrier_b -F file=@contracts/samples/statement_carrier_b.csv http://localhost:8000/statements
 curl "http://localhost:8000/reconciliations?carrier=carrier_b&limit=5"
 ```
+
+Một lệnh cho cả bộ demo (Windows PowerShell, mở mỗi phần một cửa sổ):
+
+```powershell
+.\scripts\demo.ps1                 # bộ dữ liệu demo chat_v1, giờ mô phỏng 23/10 08:00
+.\scripts\demo.ps1 -Tunnel         # thêm tunnel Cloudflare cho webhook Datadog và link giao diện công khai
+.\scripts\demo.ps1 -ReadOnly       # giao diện chỉ xem (ẩn nút duyệt, gửi hãng, ghi nhận thu hồi)
+```
+
+### Bản demo cho giám khảo
+
+Giao diện chỉ xem trên Streamlit Community Cloud (`requirements.txt`, mẫu secrets `.streamlit/secrets.toml.example`,
+`SHIPAUDIT_READ_ONLY=true`), người dùng Atlas chỉ đọc, Datadog bằng tài khoản Read Only hoặc ảnh chụp và video.
+Hướng dẫn từng bước: [`docs/demo-cho-giam-khao.md`](docs/demo-cho-giam-khao.md).
 
 ### Kịch bản sự cố
 
@@ -66,10 +88,27 @@ python -m scenarios.biz.run --db shipaudit_b_scenario --reset    # B: bảng kê
 
 Mỗi pha giữ vài phút để monitor Datadog (cửa sổ 5 phút) kịp đánh giá. Báo cáo ghi vào `generator/out/scenario/`.
 
+Kịch bản nghiệp vụ có 5 pha: bình thường → sự cố (tiền nhận thiếu vượt ngưỡng) → sát hạn khiếu nại (webhook tạo claim
+nháp) → duyệt và gửi hãng → hãng hoàn tiền (claim Đã thu hồi). Tùy chọn:
+
+- `--webhook real`: chờ Datadog gọi webhook thật (cần API chạy cùng `MONGO_DB`, `SHIPAUDIT_NOW=2026-10-22T13:00:00+07:00`
+  và địa chỉ công khai, ví dụ `cloudflared tunnel --url http://127.0.0.1:8000`); không thấy thì giả lập dự phòng.
+- `--approve-by "Tên"`, `--recover-by "Tên"`: tự duyệt và ghi nhận hãng hoàn tiền; không đặt thì chờ người làm trên giao diện.
+
 ### Dashboard và monitor Datadog
 
 JSON nằm ở `datadog/ops/` và `datadog/biz/`; tạo hoặc cập nhật bằng `python datadog/ops/apply.py` và
 `python datadog/biz/apply.py` (cần `DD_APP_KEY`), hoặc nhập JSON trên giao diện Datadog. Id đã tạo ở `deployed.json`.
+
+Lớp nghiệp vụ (`datadog/biz/`) gồm: dashboard, 6 monitor (vượt ngưỡng, sắp hết hạn khiếu nại, Anomaly Detection,
+Forecast, Outlier so sánh các hãng, Composite mở case), SLO "xử lý chênh lệch trước khi sát hạn khiếu nại", notebook điều
+tra 5 bước, pipeline log và log-based metric. Một lệnh tạo tất cả, đúng thứ tự phụ thuộc:
+
+```bash
+python datadog/biz/apply.py --notify @webhook-shipaudit-claims --case-handle @case-<handle>
+```
+
+Chi tiết và cách lấy handle Case Management: `datadog/biz/README.md`.
 
 ### Docker
 

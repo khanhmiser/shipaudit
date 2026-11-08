@@ -123,3 +123,48 @@ def test_with_real_claim_service_after_merge(client, db, monkeypatch):
     claim = db.claims.find_one({"reconciliation_id": "STM-B-1:B-1"})
     assert claim["status"] == "DRAFT" and claim["source"] == "datadog_webhook" and claim["alert_id"] == "real-1"
     assert claim["amount"] == 5_000
+
+
+def test_follows_shipaudit_now(client, db, monkeypatch):
+    """Demo ở giờ mô phỏng (SHIPAUDIT_NOW): hạn khiếu nại tính theo giờ đó, không theo giờ thật."""
+    simulated = NOW - timedelta(days=8)
+    monkeypatch.setenv("WEBHOOK_SECRET", SECRET)
+    monkeypatch.setenv("SHIPAUDIT_NOW", simulated.isoformat())
+    # Hạn cách giờ mô phỏng 21 giờ và 92 giờ; cả hai đã quá hạn theo giờ thật.
+    db.reconciliations.insert_many([rec("B-1", -8 * 24 + 21), rec("B-2", -8 * 24 + 92)])
+    body = post(client, {"alert_id": "sim-1", "alert_transition": "Triggered", "scope": "carrier:carrier_b"}).json()
+    assert body["count"] == 1 and body["errors"] == []
+    assert body["claims"][0]["reconciliation_id"] == "STM-B-1:B-1"
+    assert db.claims.count_documents({}) == 1
+
+
+def test_events_only_for_claims_created_by_this_call(client, db, monkeypatch):
+    """Datadog có thể gọi lại cùng một cảnh báo: sự kiện chỉ phát cho claim mới tạo ở lần gọi đó."""
+    published = []
+    monkeypatch.setenv("WEBHOOK_SECRET", SECRET)
+    monkeypatch.setattr(webhooks.events, "publish", lambda action, claims, **kw: published.append((action, list(claims))))
+    db.reconciliations.insert_many([rec("B-1", 5), rec("B-2", 30)])
+    body = {"alert_id": "ev-1", "alert_transition": "Triggered", "scope": "carrier:carrier_b"}
+    post(client, body)
+    post(client, body)
+    assert [(a, len(c)) for a, c in published] == [("created", 2), ("created", 0)]
+    assert {c["carrier"] for c in published[0][1]} == {"carrier_b"}
+
+
+def test_recovered_amounts_are_skipped(client, db, monkeypatch):
+    monkeypatch.setenv("WEBHOOK_SECRET", SECRET)
+    db.reconciliations.insert_many([rec("B-1", 5), rec("B-2", 30)])
+    db.claims.insert_one({"claim_id": "CLM-OLD", "reconciliation_id": "STM-B-1:B-1", "carrier": "carrier_b",
+                          "status": "RECOVERED", "amount": 5_000, "recovered_amount": 5_000})
+    body = post(client, {"alert_id": "after-refund", "alert_transition": "Triggered", "scope": "carrier:carrier_b"}).json()
+    assert [c["reconciliation_id"] for c in body["claims"]] == ["STM-B-1:B-2"] and body["errors"] == []
+
+
+def test_rejected_amounts_are_skipped(client, db, monkeypatch):
+    """Hãng đã từ chối: webhook không tạo claim mới, doanh nghiệp tự liên hệ hãng."""
+    monkeypatch.setenv("WEBHOOK_SECRET", SECRET)
+    db.reconciliations.insert_many([rec("B-1", 5), rec("B-2", 30)])
+    db.claims.insert_one({"claim_id": "CLM-REJ", "reconciliation_id": "STM-B-1:B-1", "carrier": "carrier_b",
+                          "status": "REJECTED", "amount": 5_000, "note": "thiếu chứng từ"})
+    body = post(client, {"alert_id": "after-reject", "alert_transition": "Triggered", "scope": "carrier:carrier_b"}).json()
+    assert [c["reconciliation_id"] for c in body["claims"]] == ["STM-B-1:B-2"] and body["errors"] == []

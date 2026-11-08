@@ -1,6 +1,7 @@
 """[B] Aggregation Pipeline: Xu hướng chênh lệch theo thời gian ($setWindowFields).
 
-Gom chênh lệch theo hãng × ngày giao (giờ Việt Nam), rồi $setWindowFields theo từng hãng:
+Gom chênh lệch theo hãng × ngày giao (giờ Việt Nam; `unit="week"` thì theo tuần, bắt đầu thứ Hai, cùng cách chia kỳ
+đối soát), rồi $setWindowFields theo từng hãng:
 - `cumulative_amount`, `cumulative_count`: cộng dồn từ đầu.
 - `amount_7d`, `count_7d`: cửa sổ 7 ngày gần nhất (tính theo ngày, kể cả ngày trống).
 Chỉ dùng tổng, không dùng trung bình, để tiền luôn là số nguyên.
@@ -16,7 +17,13 @@ COLLECTION = Collections.RECONCILIATIONS
 TZ = "+07:00"
 
 
-def pipeline(carrier: str | None = None, since: datetime | None = None, until: datetime | None = None) -> list[dict]:
+def pipeline(carrier: str | None = None, since: datetime | None = None, until: datetime | None = None,
+             unit: str = "day") -> list[dict]:
+    if unit not in ("day", "week"):
+        raise ValueError(f"unit phải là day hoặc week, nhận {unit!r}")
+    trunc = {"date": "$delivered_at", "unit": unit, "timezone": TZ}
+    if unit == "week":
+        trunc["startOfWeek"] = "monday"
     match: dict = {"diff_type": {"$ne": "NONE"}, "delivered_at": {"$type": "date"}}
     if since or until:
         rng = {"$type": "date"}
@@ -31,7 +38,7 @@ def pipeline(carrier: str | None = None, since: datetime | None = None, until: d
         {"$match": match},
         {"$group": {
             "_id": {"carrier": "$carrier",
-                    "day": {"$dateTrunc": {"date": "$delivered_at", "unit": "day", "timezone": TZ}}},
+                    "day": {"$dateTrunc": trunc}},
             "diff_count": {"$sum": 1},
             "diff_amount": {"$sum": "$diff"},
         }},
@@ -50,5 +57,6 @@ def pipeline(carrier: str | None = None, since: datetime | None = None, until: d
     ]
 
 
-def run(db, carrier: str | None = None, since: datetime | None = None, until: datetime | None = None) -> list[dict]:
-    return list(db[COLLECTION].aggregate(pipeline(carrier, since, until)))
+def run(db, carrier: str | None = None, since: datetime | None = None, until: datetime | None = None,
+        unit: str = "day") -> list[dict]:
+    return list(db[COLLECTION].aggregate(pipeline(carrier, since, until, unit)))

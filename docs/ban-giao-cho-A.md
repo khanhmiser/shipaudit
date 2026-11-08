@@ -85,7 +85,16 @@ Datadog không gọi được `localhost`. Dựng tunnel (ví dụ cloudflared h
 
 Kịch bản nghiệp vụ (B10) và việc chuyển sang chat_v1, hồ sơ nộp (slide, video, mô tả giải pháp), cập nhật tiến độ trong `docs/word/src/theo-doi-tien-do.md`.
 
-## 6. Khóa và quyền truy cập
+## 6. Cập nhật 30/10/2026: B sửa trong phần của A (A xem lại)
+
+Hạn nộp gia hạn đến 8/11. B chạy thật Datadog và Atlas không dùng Docker và sửa mấy chỗ trong `app/`:
+
+- `app/main.py`: nạp `.env` (`from common import config`) trước `setup_logging()`. Trước đó chạy trên máy không Docker thì `DD_LOGS_AGENTLESS=true` không có tác dụng (chưa có `DD_API_KEY` lúc bật log). Đã kiểm: log webhook lên Datadog.
+- `app/api/webhooks.py`: đọc `SHIPAUDIT_NOW` (để demo ở giờ mô phỏng, cùng cách `ui/shared.py`), phát sự kiện Datadog "tạo claim nháp" chỉ cho claim mới tạo ở lần gọi đó, log thêm `amount`. Test: `test_follows_shipaudit_now`, `test_events_only_for_claims_created_by_this_call`.
+- `.env.example`: thêm `SHIPAUDIT_DD_EVENTS`, `SHIPAUDIT_CASE_HANDLE`.
+- Webhook `shipaudit-claims` đã tạo trên Datadog bằng API, URL là tunnel Cloudflare tạm thời (đổi mỗi lần mở lại tunnel). Đã kiểm bằng Test Notifications và bằng kịch bản `--webhook real`: Datadog gọi thật, tạo 181 claim nháp, gọi lại không tạo thêm. Bước 5 ở trên coi như xong phần kiểm thử; còn lại là địa chỉ công khai cố định nếu muốn.
+
+## 7. Khóa và quyền truy cập
 
 - **Datadog**: B mời A vào tổ chức `uk1.datadoghq.com`; A tự tạo API key của mình (và Application key nếu cần chạy `datadog/*/apply.py`). Không gửi khóa của B qua chat hay email.
 - **Atlas**: B thêm IP của A vào Network Access và gửi thông tin đăng nhập qua trình quản lý mật khẩu. A dùng database riêng khi phát triển (không dùng `shipaudit_b_dev`).

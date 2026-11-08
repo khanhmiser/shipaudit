@@ -3,7 +3,6 @@ thông báo sau thao tác và log thao tác phía máy chủ.
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 import sys
@@ -14,7 +13,8 @@ import altair as alt
 import streamlit as st
 
 from common.db import get_db
-from core import queries
+from common.dd_logs import DatadogLogHandler, JsonFormatter
+from core import events, queries
 from core.claims import ClaimService
 from core.periods import as_aware
 from ui import view
@@ -22,10 +22,22 @@ from ui import view
 log = logging.getLogger("shipaudit.ui")
 if not log.handlers:
     _handler = logging.StreamHandler(sys.stdout)
-    _handler.setFormatter(logging.Formatter("%(message)s"))
+    _handler.setFormatter(JsonFormatter())
     log.addHandler(_handler)
+    # Không có Agent: DD_LOGS_AGENTLESS=true thì gửi thẳng Datadog Logs API (cùng bộ gửi log của API).
+    if os.getenv("DD_API_KEY") and os.getenv("DD_LOGS_AGENTLESS", "false").lower() == "true":
+        log.addHandler(DatadogLogHandler(os.environ["DD_API_KEY"], os.getenv("DD_SITE", "datadoghq.com")))
     log.setLevel(logging.INFO)
     log.propagate = False
+
+
+READ_ONLY_NOTE = ("Chế độ chỉ xem (bản demo): các thao tác tạo claim, duyệt, gửi hãng và ghi nhận thu hồi được ẩn. "
+                  "Bản đầy đủ có các nút này; con người duyệt claim trước khi gửi hãng.")
+
+
+def read_only() -> bool:
+    """SHIPAUDIT_READ_ONLY=true: bản demo cho người xem bên ngoài (giám khảo), ẩn mọi thao tác ghi dữ liệu."""
+    return os.getenv("SHIPAUDIT_READ_ONLY", "").lower() == "true"
 
 
 def db():
@@ -54,9 +66,14 @@ def session_id() -> str:
 
 
 def track(event: str, **fields) -> None:
-    """Một dòng log JSON cho thao tác chính trên giao diện, kèm mã phiên."""
-    log.info(json.dumps({"service": "shipaudit-ui", "event": event, "session": session_id(), **fields},
-                        ensure_ascii=False, default=str))
+    """Một dòng log JSON cho thao tác chính trên giao diện, kèm mã phiên. Các trường (carrier, claim_id...) là thuộc tính
+    của log để lọc trên Datadog Log Management."""
+    log.info(event, extra={"service": "shipaudit-ui", "event": event, "session": session_id(), **fields})
+
+
+def claim_event(action: str, claims: list[dict], by: str = "", source: str | None = None) -> None:
+    """Sự kiện Datadog cho một thao tác claim, gộp theo hãng (chỉ gửi khi SHIPAUDIT_DD_EVENTS=true)."""
+    events.publish(action, claims, by, source, names=carrier_names())
 
 
 # ── Khung trang ──

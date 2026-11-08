@@ -38,6 +38,32 @@ c[3].html(view.kpi(
     tone="warning" if soon else "",
 ))
 
+# ── Kết quả khiếu nại: đã gửi hãng, chờ phản hồi, đã thu hồi ──
+outcomes = queries.claim_outcomes(db)
+
+
+def _claims(*statuses: str, key: str = "count") -> int:
+    return sum(o[key] for o in outcomes if o["status"] in statuses)
+
+
+sent = _claims("SUBMITTED", "RECOVERED", "REJECTED")
+if sent:
+    waiting, recovered_n = _claims("SUBMITTED"), _claims("RECOVERED")
+    recovered, claimed_back = _claims("RECOVERED", key="recovered"), _claims("RECOVERED", key="amount")
+    k = st.columns(4)
+    k[0].html(view.kpi("Đã khiếu nại hãng", view.vnd(_claims("SUBMITTED", "RECOVERED", "REJECTED", key="amount")),
+                       f"{sent:,} claim đã gửi".replace(",", ".")))
+    k[1].html(view.kpi("Chờ hãng phản hồi", view.vnd(_claims("SUBMITTED", key="amount")), f"{waiting:,} claim".replace(",", "."),
+                       tone="warning" if waiting else ""))
+    k[2].html(view.kpi("Đã thu hồi", view.vnd(recovered), f"{recovered_n:,} claim được hãng hoàn tiền".replace(",", ".")
+                       + (f" · hãng hoàn thiếu {view.vnd(claimed_back - recovered)}" if claimed_back > recovered else ""),
+                       tone="success" if recovered else ""))
+    rejected = queries.list_claims(db, "REJECTED")
+    planned = sum(1 for c in rejected if c.get("next_contact_at"))
+    k[3].html(view.kpi("Bị từ chối, đang theo dõi", view.vnd(sum(int(c["amount"]) for c in rejected)),
+                       f"{len(rejected)} claim · {planned} có hẹn liên hệ lại" if rejected else "Không có claim nào bị từ chối",
+                       tone="danger" if rejected else ""))
+
 # ── Chênh lệch theo hãng · Hạn khiếu nại ──
 left, right = st.columns([3, 2])
 
@@ -83,17 +109,25 @@ right.html(view.card("Hạn khiếu nại", "".join(items), view.page_link("han-
 
 # ── Đơn chênh lệch cần xử lý ──
 recs = queries.list_reconciliations(db, None, period)
+claim_of = queries.claim_by_reconciliation(db)
+HANDLED = {"SUBMITTED": "accent", "RECOVERED": "success", "REJECTED": "danger"}  # claim đã gửi hãng: hết việc cần làm
+
+
+def _handled(r: dict) -> str | None:
+    status = (claim_of.get(r.get("reconciliation_id")) or {}).get("status")
+    return status if status in HANDLED else None
 
 
 def _priority(r: dict) -> tuple:
     hours = view.hours_left(r.get("claim_deadline_at"), now)
-    claimable = r.get("diff", 0) > 0 and hours is not None and hours > 0
+    claimable = r.get("diff", 0) > 0 and hours is not None and hours > 0 and not _handled(r)
     return (0, hours, -r["diff"]) if claimable else (1, 0, -abs(r.get("diff", 0)))
 
 
 rows = []
 for r in sorted(recs, key=_priority)[:8]:
     hours = view.hours_left(r.get("claim_deadline_at"), now)
+    handled = _handled(r)
     rows.append(([
         view.order_link(r["order_code"]),
         view.esc(names.get(r["carrier"], r["carrier"])),
@@ -101,9 +135,9 @@ for r in sorted(recs, key=_priority)[:8]:
         view.num(r.get("expected_amount", 0)),
         view.num(r.get("actual_amount", 0)),
         view.money_cell(r.get("diff", 0)),
-        f'<span class="{view.deadline_text_class(hours)}" style="font-weight:600">'
+        "—" if handled else f'<span class="{view.deadline_text_class(hours)}" style="font-weight:600">'
         f'{view.esc(view.short_left(r.get("claim_deadline_at"), now))}</span>',
-        view.urgency_html(hours),
+        view.badge(view.CLAIM_STATUS_LABELS[handled], HANDLED[handled]) if handled else view.urgency_html(hours),
     ], ""))
 table = view.table([("Mã đơn", False), ("Hãng", False), ("Loại chênh lệch", False), ("Phải nhận", True),
                     ("Thực nhận", True), ("Chênh lệch", True), ("Còn lại", False), ("Mức khẩn", False)], rows, 860)

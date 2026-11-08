@@ -7,7 +7,7 @@ from typing import Any
 from common.enums import Collections
 from core.claims import OPEN_STATUSES, ClaimService
 from core.rules import CarrierRule, load_rule
-from pipelines import claims_expiring, diff_by_carrier, diff_trend, missing_orders
+from pipelines import claims_expiring, claims_outcome, diff_by_carrier, diff_trend, missing_orders
 
 
 def _clean(doc: dict | None) -> dict | None:
@@ -57,6 +57,17 @@ def carriers(db: Any) -> list[dict]:
     ]))
 
 
+def carrier_rule_documents(db: Any) -> list[dict]:
+    """Bản quy tắc mới nhất của từng hãng, đúng như lưu trong carrier_rules (để giao diện hiển thị thông tin hãng)."""
+    return list(db[Collections.CARRIER_RULES].aggregate([
+        {"$sort": {"carrier": 1, "version": -1}},
+        {"$group": {"_id": "$carrier", "doc": {"$first": "$$ROOT"}}},
+        {"$replaceRoot": {"newRoot": "$doc"}},
+        {"$project": {"_id": 0}},
+        {"$sort": {"carrier": 1}},
+    ]))
+
+
 def periods(db: Any) -> list[str]:
     return sorted(p for p in db[Collections.RECONCILIATIONS].distinct("period") if p)
 
@@ -66,8 +77,9 @@ def diff_summary(db: Any, carrier: str | None = None, period_list: list[str] | N
 
 
 def diff_trend_by_day(db: Any, carrier: str | None = None, since: datetime | None = None,
-                      until: datetime | None = None) -> list[dict]:
-    return diff_trend.run(db, carrier, since, until)
+                      until: datetime | None = None, unit: str = "day") -> list[dict]:
+    """Chênh lệch theo ngày giao (`unit="week"`: theo tuần, bắt đầu thứ Hai), kèm cộng dồn và tổng 7 ngày."""
+    return diff_trend.run(db, carrier, since, until, unit)
 
 
 def missing_in_statement(db: Any, carrier: str, period: str) -> list[dict]:
@@ -76,6 +88,11 @@ def missing_in_statement(db: Any, carrier: str, period: str) -> list[dict]:
 
 def expiring(db: Any, now: datetime | None = None, within_hours: float = 24, carrier: str | None = None) -> dict:
     return claims_expiring.run(db, now, within_hours, carrier)
+
+
+def claim_outcomes(db: Any, carrier: str | None = None) -> list[dict]:
+    """Số claim, tiền khiếu nại và tiền đã thu hồi theo hãng × trạng thái claim."""
+    return claims_outcome.run(db, carrier)
 
 
 def list_claims(db: Any, status: str | None = None, carrier: str | None = None) -> list[dict]:

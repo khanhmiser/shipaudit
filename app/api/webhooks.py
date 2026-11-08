@@ -28,6 +28,7 @@ from app.telemetry.metrics import increment
 from common import config
 from common.enums import Collections
 from contracts.interfaces import ClaimService
+from core import events
 
 log = logging.getLogger("shipaudit.webhook")
 
@@ -44,10 +45,20 @@ def require_secret(x_shipaudit_secret: Annotated[str | None, Header()] = None) -
         raise HTTPException(status_code=401, detail="sai hoặc thiếu X-ShipAudit-Secret")
 
 
+def now() -> datetime:
+    """Giờ hiện tại. Đặt SHIPAUDIT_NOW (ISO) để chạy demo ở giờ mô phỏng của dữ liệu seed (cùng cách ui/shared.py)."""
+    fixed = os.getenv("SHIPAUDIT_NOW")
+    if fixed:
+        from core.periods import as_aware
+
+        return as_aware(fixed)
+    return datetime.now(timezone.utc)
+
+
 def claim_service(db: Any) -> ClaimService:
     from core.claims import ClaimService as RealClaimService
 
-    return RealClaimService(db)
+    return RealClaimService(db, now=now)
 
 
 def carrier_of(alert: DatadogAlert) -> str | None:
@@ -67,7 +78,11 @@ def expiring_reconciliations(db: Any, carrier: str, within_hours: float, now: da
          "claim_deadline_at": {"$gt": now_db, "$lte": now_db + timedelta(hours=within_hours)}},
         {"reconciliation_id": 1, "statement_id": 1, "order_code": 1},
     ).sort([("claim_deadline_at", 1), ("reconciliation_id", 1)])
-    return [r.get("reconciliation_id") or f"{r['statement_id']}:{r['order_code']}" for r in cur]
+    # Khoản đã có kết quả từ hãng (hoàn tiền hoặc từ chối) không khiếu nại lại; từ chối thì doanh nghiệp tự liên hệ hãng.
+    resolved = set(db[Collections.CLAIMS].distinct(
+        "reconciliation_id", {"carrier": carrier, "status": {"$in": ["RECOVERED", "REJECTED"]}}))
+    ids = [r.get("reconciliation_id") or f"{r['statement_id']}:{r['order_code']}" for r in cur]
+    return [rid for rid in ids if rid not in resolved]
 
 
 @router.post("/webhooks/datadog", response_model=WebhookResult, dependencies=[Depends(require_secret)])
@@ -81,21 +96,27 @@ def datadog_webhook(alert: DatadogAlert, db: Any = Depends(get_db)) -> WebhookRe
     if alert.reconciliation_id:
         targets = [alert.reconciliation_id]
     elif carrier:
-        targets = expiring_reconciliations(db, carrier, alert.within_hours, datetime.now(timezone.utc))
+        targets = expiring_reconciliations(db, carrier, alert.within_hours, now())
     else:
         raise HTTPException(status_code=422, detail="payload thiếu reconciliation_id hoặc tag carrier:<mã hãng>")
 
     svc = claim_service(db)
-    claims, errors = [], []
+    seen = {c["claim_id"] for c in db[Collections.CLAIMS].find({"alert_id": alert.alert_id}, {"claim_id": 1})}
+    claims, created, errors = [], [], []
     for rid in targets:
         try:
             c = svc.create_draft(rid, SOURCE, alert.alert_id)
             claims.append(WebhookClaim(claim_id=c.get("claim_id"), reconciliation_id=rid, status=c.get("status", "")))
+            created.append(c)
         except ValueError as e:  # ClaimError của B: không còn gì để khiếu nại, quá hạn...
             errors.append(f"{rid}: {e}")
+    # Sự kiện Datadog (vạch trên dashboard), gộp theo hãng, chỉ cho claim mới tạo ở lần gọi này (Datadog có thể gọi
+    # lại cùng alert); chỉ gửi khi SHIPAUDIT_DD_EVENTS=true.
+    new = [c for c in created if c.get("carrier") and c.get("alert_id") == alert.alert_id and c.get("claim_id") not in seen]
+    events.publish("created", new, by=SOURCE, source=SOURCE)
     log.warning("webhook Datadog: tạo claim nháp", extra={
         "alert_id": alert.alert_id, "monitor_id": alert.monitor_id, "carrier": carrier, "count": len(claims),
-        "errors": len(errors)})
+        "errors": len(errors), "amount": sum(int(c.get("amount") or 0) for c in created)})
     increment("shipaudit.ops.webhook_calls", 1, {"carrier": carrier or "none", "result": "created"})
     return WebhookResult(alert_id=alert.alert_id, action="created", carrier=carrier, count=len(claims),
                          claims=claims, errors=errors)

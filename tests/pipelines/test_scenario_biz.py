@@ -26,7 +26,7 @@ def report(tmp_path_factory):
     sent = []
     out = tmp_path_factory.mktemp("scenario")
     rep = scenario.run(db, metric=lambda n, v, t=None: sent.append((n, v, t)), hold_minutes=0,
-                       approve_by="test-nguoi-duyet", out_dir=out, log=lambda s: None, sleep=lambda s: None)
+                       approve_by="test-nguoi-duyet", recover_by="test-ke-toan", out_dir=out, log=lambda s: None, sleep=lambda s: None)
     yield {"report": rep, "db": db, "sent": sent, "out": out}
     for name in db.list_collection_names():
         db.drop_collection(name)
@@ -68,7 +68,7 @@ def test_webhook_is_idempotent_and_claims_resolve(report):
     assert claims["drafts"] == claims["drafts_on_retry"] == p3_open_count(rep) > 0
     assert claims["not_submitted"] == 0
     assert db[Collections.CLAIMS].count_documents({"alert_id": claims["alert_id"]}) == claims["drafts"]
-    assert db[Collections.CLAIMS].count_documents({"status": "SUBMITTED"}) == claims["drafts"]
+    assert db[Collections.CLAIMS].count_documents({"status": "RECOVERED"}) == claims["drafts"]   # pha 5: hãng đã hoàn tiền
     assert all(c["source"] == "datadog_webhook" for c in db[Collections.CLAIMS].find())
     p4a, p4b = _phase(rep, "4a."), _phase(rep, "4b.")
     assert p4a["monitors"]["carrier_b"]["deadline"] == "ALERT"    # claim nháp chưa phải đã xử lý
@@ -82,7 +82,8 @@ def p3_open_count(rep):
 
 def test_metrics_emitted_each_phase_and_outputs_written(report):
     names = {n for n, _, _ in report["sent"]}
-    assert names == {"shipaudit.biz.diff_amount", "shipaudit.biz.diff_count", "shipaudit.biz.claim_hours_left"}
+    assert names == {"shipaudit.biz.diff_amount", "shipaudit.biz.diff_count", "shipaudit.biz.claim_hours_left",
+                    "shipaudit.biz.claim_amount", "shipaudit.biz.recovered_amount"}
     per_round = len(report["sent"]) // len(report["report"]["phases"])
     assert per_round * len(report["report"]["phases"]) == len(report["sent"])
     csv = (report["out"] / "STM-B-2026W42.csv").read_text(encoding="utf-8")
@@ -100,3 +101,15 @@ def test_monitor_states_rules():
         "y": {"threshold": "WARN", "deadline": "WARN"},
         "z": {"threshold": "OK", "deadline": "OK"},
     }
+
+
+def test_carrier_refund_phase_recovers_submitted_claims(report):
+    rep = report["report"]
+    rec = rep["claims"]["recovered"]
+    assert rec["claims"] == rep["claims"]["drafts"] and rec["amount"] > 0 and rec["still_waiting"] == 0
+    phase = _phase(rep, "5.")
+    assert phase["summary"]["carrier_b"]["open_amount"] == 0
+    names = {n for n, _, _ in report["sent"]}
+    assert {"shipaudit.biz.claim_amount", "shipaudit.biz.recovered_amount"} <= names
+    recovered = [v for n, v, t in report["sent"] if n == "shipaudit.biz.recovered_amount" and t["carrier"] == "carrier_b"]
+    assert recovered[-1] == rec["amount"]

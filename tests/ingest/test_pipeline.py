@@ -14,7 +14,8 @@ from app.ingest.pipeline import ERROR, OK, PARTIAL, Faults, ingest
 from common.enums import Collections
 
 SAMPLES = Path(__file__).resolve().parents[2] / "contracts" / "samples"
-T0 = datetime(2026, 10, 22, 2, 0, tzinfo=timezone.utc)
+# Gần giờ thật: ingest_events có TTL 14 ngày, mốc cố định sẽ bị mongomock coi là đã hết hạn.
+T0 = datetime.now(timezone.utc).replace(microsecond=0)
 
 
 class Clock:

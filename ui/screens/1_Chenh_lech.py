@@ -30,7 +30,8 @@ tab = st.segmented_control(
     "Trạng thái", [t for t, _ in cases.TABS], default="all", key="diff_tab", label_visibility="collapsed",
     format_func=lambda t: f"{dict(cases.TABS)[t]} ({counts[t]})",
 ) or "all"
-shown = sorted((r for r in base if cases.in_tab(r, tab, claims, now)), key=lambda r: cases.priority(r, now))
+sort = st.selectbox("Sắp xếp theo", [s for s, _ in cases.SORTS], key="diff_sort", format_func=dict(cases.SORTS).get)
+shown = cases.sort_cases([r for r in base if cases.in_tab(r, tab, claims, now)], sort, now)
 
 total = sum(r.get("diff", 0) for r in shown)
 scope = view.period_label(period) if period else "Tất cả các kỳ"
@@ -47,7 +48,7 @@ with left:
         st.success("Không có chênh lệch nào với bộ lọc này.")
     else:
         pages = max(1, math.ceil(len(shown) / PAGE_SIZE))
-        sig = f"{carrier}|{period}|{diff_type}|{tab}|{query}"
+        sig = f"{carrier}|{period}|{diff_type}|{tab}|{query}|{sort}"
         page = 1
         if pages > 1:
             page = int(st.columns([1, 4])[0].number_input(f"Trang (1–{pages})", 1, pages, 1, key=f"diff_page_{sig}"))

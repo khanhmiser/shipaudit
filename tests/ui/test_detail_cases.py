@@ -33,8 +33,21 @@ def test_tabs_are_filters_by_deadline_and_claim_status():
             rec("A-5", hours=30)]
     claims = {"ST-A-2026W42:A-5": {"status": "SUBMITTED"}, "ST-A-2026W42:A-2": {"status": "RECOVERED"}}
     counts = cases.tab_counts(recs, claims, NOW)
-    assert counts == {"all": 5, "soon": 1, "claiming": 1, "recovered": 1}
+    assert counts == {"all": 5, "soon": 1, "claiming": 1, "recovered": 1, "rejected": 0}
     assert [r["order_code"] for r in sorted(recs, key=lambda r: cases.priority(r, NOW))][:3] == ["A-1", "A-5", "A-2"]
+
+
+def test_overdue_shows_days_and_sorts():
+    from ui import view
+    assert view.short_left(NOW - timedelta(days=3, hours=5), NOW) == "Quá hạn 3 ngày"
+    assert view.short_left(NOW - timedelta(hours=5), NOW) == "Quá hạn 5 giờ"
+    assert view.short_left(NOW - timedelta(minutes=10), NOW) == "Quá hạn <1 giờ"
+    recs = [rec("B-1", hours=-24), rec("A-2", hours=-100), rec("C-3", hours=10), rec("D-4", hours=-5)]
+    codes = lambda s: [r["order_code"] for r in cases.sort_cases(recs, s, NOW)]
+    assert codes("late_most") == ["A-2", "B-1", "D-4", "C-3"]
+    assert codes("late_least") == ["D-4", "B-1", "A-2", "C-3"]
+    assert codes("code_az") == ["A-2", "B-1", "C-3", "D-4"]
+    assert codes("code_za") == ["D-4", "C-3", "B-1", "A-2"]
 
 
 def test_case_table_escapes_and_links_order():
@@ -105,3 +118,17 @@ def test_merged_fee_mismatch_reports_only_the_real_gap():
     why = detail.why_diff(r, None, None)
     assert why["lines"] == ["Phí giao hàng (gộp phí bảo hiểm, phí chuyển hoàn): quy tắc 95.100 ₫, hãng ghi 101.600 ₫ "
                             "(doanh nghiệp nhận thiếu 6.500 ₫)."]
+
+
+def test_rejected_claim_shows_reason_and_followup():
+    from datetime import datetime, timezone
+    from ui import view
+    claim = {"claim_id": "CLM-1", "order_code": "A-1", "carrier": "carrier_a", "diff_type": "FEE_MISMATCH",
+             "amount": 5_000, "status": "REJECTED", "note": "thiếu ảnh biên nhận",
+             "followups": [{"at": datetime(2026, 10, 23, 2, 0, tzinfo=timezone.utc), "by": "Lan", "note": "Đã gọi hãng"}],
+             "next_contact_at": datetime(2026, 10, 26, 2, 0, tzinfo=timezone.utc)}
+    row = view.claim_rows([claim], {"carrier_a": "Carrier A"}, NOW)[0]
+    assert row["Lý do từ chối"] == "thiếu ảnh biên nhận" and row["Theo dõi gần nhất"].endswith("Lan: Đã gọi hãng")
+    assert row["Hẹn liên hệ lại"] == "26/10/2026 09:00"
+    step = detail.recovery_steps(rec("A-1", hours=10), claim)[3]
+    assert step["state"] == "now" and "thiếu ảnh biên nhận" in step["sub"] and "1 lần theo dõi" in step["sub"]

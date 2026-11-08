@@ -3,14 +3,21 @@
     python -m scenarios.biz.run --db shipaudit_b_scenario --reset                       # chờ người duyệt trên giao diện
     python -m scenarios.biz.run --db shipaudit_b_scenario --reset --approve-by "Tên người duyệt"
     python -m scenarios.biz.run --db shipaudit_b_scenario --reset --hold-minutes 0 --sink console   # chạy nhanh, không Datadog
+    python -m scenarios.biz.run --db shipaudit_scenario --reset --webhook real                      # webhook Datadog gọi thật
+    python -m scenarios.biz.run --db shipaudit_scenario --reset --approve-by "Tên" --recover-by "Tên"   # chạy tới khi hãng hoàn tiền
 
 Các pha (giờ mô phỏng theo dòng thời gian của dữ liệu seed, giờ Việt Nam; điểm metric vẫn gắn giờ thật):
 1. Bình thường, 20/10 10:00: đã nhận mọi bảng kê tới kỳ W42 trừ bảng kê W42 của Carrier B (hãng gửi muộn).
 2. Sự cố, cùng lúc: bảng kê W42 của Carrier B về, có ERRORS đơn bị ghi thiếu tiền thu hộ SHORTFALL đồng
    (ngoài các chênh lệch đã cài sẵn trong seed). Tiền nhận thiếu của B vượt ngưỡng → monitor ngưỡng và Anomaly Detection.
 3. 51 giờ sau, 22/10 13:00, chưa ai xử lý: B còn 21 giờ để khiếu nại → monitor "Sắp hết hạn khiếu nại".
-4. Webhook tạo claim nháp cho các khoản của B sắp hết hạn (giả lập theo đúng cách webhook của A sẽ gọi, khi A9 chưa xong),
+4. Webhook tạo claim nháp cho các khoản của B sắp hết hạn: giả lập (mặc định) hoặc `--webhook real`: chờ monitor Datadog
+   báo động rồi gọi POST /webhooks/datadog của API (cần API chạy với cùng MONGO_DB và SHIPAUDIT_NOW = giờ pha 3, có địa chỉ
+   công khai và webhook `shipaudit-claims` trên Datadog; không thấy claim sau `--webhook-wait-minutes` thì dùng giả lập dự phòng),
    con người duyệt và ghi nhận đã gửi hãng (trên giao diện, hoặc --approve-by), metric về 0 → các monitor về OK.
+
+5. Hãng chấp nhận khiếu nại và hoàn tiền (chỉ khi có `--recover-by` hoặc `--wait-recovery-minutes`): claim chuyển sang
+   Đã thu hồi, `recovered_amount` tăng, tiền nhận thiếu còn lại về 0.
 
 Mỗi pha giữ metric `--hold-minutes` phút (mặc định 8) để monitor trên Datadog kịp đánh giá (cửa sổ 5 phút).
 Trong lúc chạy, tắt job `python -m core.metrics_job` đang chạy riêng (nếu có), vì hai nơi cùng phát một chuỗi metric.
@@ -27,7 +34,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from common.enums import Collections
-from core import metrics_job
+from core import events, metrics_job, queries
 from core.claims import ClaimService
 from core.periods import VN_TZ, to_db
 from core.reconcile import reconcile_statement
@@ -112,21 +119,49 @@ def incident(db: Any, ds: dict, held: list[dict], now: datetime, errors: int = E
     }
 
 
-def simulate_webhook(db: Any, now: datetime, alert_id: str) -> list[dict]:
-    """Việc webhook POST /webhooks/datadog sẽ làm khi monitor hạn khiếu nại báo động (idempotent theo alert id)."""
+def simulate_webhook(db: Any, now: datetime, alert_id: str, announce: bool = True) -> list[dict]:
+    """Việc webhook POST /webhooks/datadog sẽ làm khi monitor hạn khiếu nại báo động (idempotent theo alert id).
+    `announce`: phát sự kiện Datadog (lần gọi lại cùng alert thì không)."""
     svc = ClaimService(db, now=lambda: now)
-    return svc.create_drafts_for_carrier(CARRIER, source="datadog_webhook", alert_id=alert_id,
-                                         within_hours=DRAFT_WINDOW_HOURS)
+    drafts = svc.create_drafts_for_carrier(CARRIER, source="datadog_webhook", alert_id=alert_id,
+                                           within_hours=DRAFT_WINDOW_HOURS)
+    if announce:
+        events.publish("created", drafts, by="webhook giả lập", source="datadog_webhook")
+    return drafts
+
+
+def webhook_claims(db: Any, carrier: str = CARRIER) -> list[dict]:
+    """Claim nháp do webhook thật (Datadog gọi API) tạo cho hãng."""
+    return list(db[Collections.CLAIMS].find({"carrier": carrier, "source": "datadog_webhook"},
+                                            {"_id": 0, "claim_id": 1, "alert_id": 1}))
+
+
+def wait_for_webhook(db: Any, metric, now: datetime, minutes: float, interval: float,
+                     on_poll: Callable[[], None] = lambda: None,
+                     sleep: Callable[[float], None] = time.sleep) -> list[dict]:
+    """Chờ webhook thật tạo claim. Trong lúc chờ vẫn phát metric tại giờ `now` để monitor giữ trạng thái báo động."""
+    deadline = time.monotonic() + minutes * 60
+    while True:
+        claims = webhook_claims(db)
+        if claims or time.monotonic() >= deadline:
+            return claims
+        hold(db, now, metric, 0, interval, sleep)
+        on_poll()
+        sleep(interval)
 
 
 def approve_and_submit(db: Any, now: datetime, claim_ids: list[str], by: str) -> int:
     svc = ClaimService(db, now=lambda: now)
+    approved, submitted = [], []
     for cid in claim_ids:
         claim = svc.get(cid)
         if claim["status"] == "DRAFT":
             claim = svc.approve(cid, by)
+            approved.append(claim)
         if claim["status"] == "APPROVED":
-            svc.submit(cid, by)
+            submitted.append(svc.submit(cid, by))
+    events.publish("approved", approved, by)
+    events.publish("submitted", submitted, by)
     return len(claim_ids)
 
 
@@ -138,6 +173,31 @@ def wait_for_submission(db: Any, claim_ids: list[str], timeout_s: float, poll_s:
     while True:
         left = db[Collections.CLAIMS].count_documents(
             {"claim_id": {"$in": claim_ids}, "status": {"$in": ["DRAFT", "APPROVED"]}})
+        on_poll(left)
+        if left == 0 or time.monotonic() >= deadline:
+            return left
+        sleep(poll_s)
+
+
+def recover_claims(db: Any, now: datetime, claim_ids: list[str], by: str) -> tuple[int, int]:
+    """Hãng chấp nhận và hoàn đủ tiền: ghi nhận đã thu hồi các claim đã gửi hãng. Trả về (số claim, tổng tiền hoàn)."""
+    svc = ClaimService(db, now=lambda: now)
+    done = []
+    for cid in claim_ids:
+        claim = svc.get(cid)
+        if claim["status"] == "SUBMITTED":
+            done.append(svc.mark_recovered(cid, int(claim["amount"]), by))
+    events.publish("recovered", done, by)
+    return len(done), sum(c["recovered_amount"] for c in done)
+
+
+def wait_for_recovery(db: Any, claim_ids: list[str], timeout_s: float, poll_s: float,
+                      on_poll: Callable[[int], None] = lambda n: None,
+                      sleep: Callable[[float], None] = time.sleep) -> int:
+    """Chờ người ghi nhận hãng đã hoàn tiền trên giao diện. Trả về số claim còn chờ hãng phản hồi khi hết giờ."""
+    deadline = time.monotonic() + timeout_s
+    while True:
+        left = db[Collections.CLAIMS].count_documents({"claim_id": {"$in": claim_ids}, "status": "SUBMITTED"})
         on_poll(left)
         if left == 0 or time.monotonic() >= deadline:
             return left
@@ -161,6 +221,8 @@ def hold(db: Any, now: datetime, metric, minutes: float, interval: float,
 
 def run(db: Any, *, metric=None, hold_minutes: float = 8, interval: float = 60, approve_by: str | None = None,
         wait_minutes: float = 30, errors: int = ERRORS, shortfall: int = SHORTFALL, out_dir: Path | None = OUT_DIR,
+        webhook: str = "simulate", webhook_wait_minutes: float = 15,
+        recover_by: str | None = None, wait_recovery_minutes: float = 0,
         log: Callable[[str], None] = print, sleep: Callable[[float], None] = time.sleep) -> dict:
     thresholds = load_thresholds()
     run_id = datetime.now(VN_TZ).strftime("%Y%m%d-%H%M%S")
@@ -191,11 +253,26 @@ def run(db: Any, *, metric=None, hold_minutes: float = 8, interval: float = 60, 
     phase("3. Chưa ai xử lý, sát hạn khiếu nại", t1)
 
     alert_id = f"scenario-biz-{run_id}"
-    drafts = simulate_webhook(db, t1, alert_id)
-    again = simulate_webhook(db, t1, alert_id)
+    drafts: list[dict] = []
+    webhook_mode = "simulated"
+    if webhook == "real":
+        log(f"\nChờ webhook thật (monitor Datadog báo động → POST /webhooks/datadog) tối đa {webhook_wait_minutes:g} phút...")
+        drafts = wait_for_webhook(db, metric, t1, webhook_wait_minutes, interval,
+                                  on_poll=lambda: log("  chưa có claim từ webhook, tiếp tục chờ"), sleep=sleep)
+        if drafts:
+            webhook_mode = "real"
+            alert_id = drafts[0].get("alert_id") or alert_id
+            log(f"Webhook thật (alert {alert_id}): {len(drafts)} claim nháp cho {CARRIER}")
+        else:
+            webhook_mode = "simulated-fallback"
+            log("Webhook không gọi về trong thời gian chờ: dùng giả lập dự phòng")
+    again: list[dict] = []
+    if webhook_mode != "real":
+        drafts = simulate_webhook(db, t1, alert_id)
+        again = simulate_webhook(db, t1, alert_id, announce=False)
+        log(f"\nWebhook (giả lập, alert {alert_id}): {len(drafts)} claim nháp cho {CARRIER}; "
+            f"gọi lại cùng alert ra {len(again)} claim, không tạo thêm")
     claim_ids = [d["claim_id"] for d in drafts]
-    log(f"\nWebhook (giả lập, alert {alert_id}): {len(drafts)} claim nháp cho {CARRIER}; "
-        f"gọi lại cùng alert ra {len(again)} claim, không tạo thêm")
     phase("4a. Đã có claim nháp, chờ duyệt", t1, minutes=min(hold_minutes, 1))
 
     if approve_by:
@@ -208,10 +285,26 @@ def run(db: Any, *, metric=None, hold_minutes: float = 8, interval: float = 60, 
                                        on_poll=lambda n: log(f"  còn {n} claim chưa gửi hãng"), sleep=sleep)
     phase("4b. Sau khi gửi claim", t1)
 
+    recovered = {"claims": 0, "amount": 0, "still_waiting": None}
+    if recover_by and not not_sent:
+        n, total = recover_claims(db, t1, claim_ids, recover_by)
+        log(f"\nHãng chấp nhận khiếu nại và hoàn tiền: {recover_by} ghi nhận đã thu hồi {n} claim, tổng {total:,}đ")
+        recovered.update(claims=n, amount=total, still_waiting=0)
+    elif wait_recovery_minutes > 0 and not not_sent:
+        log(f"\nChờ ghi nhận hãng hoàn tiền trên giao diện (trang Claims) tối đa {wait_recovery_minutes:g} phút...")
+        recovered["still_waiting"] = wait_for_recovery(
+            db, claim_ids, wait_recovery_minutes * 60, min(interval, 30),
+            on_poll=lambda n: log(f"  còn {n} claim chờ hãng phản hồi"), sleep=sleep)
+        done = [o for o in queries.claim_outcomes(db, CARRIER) if o["status"] == "RECOVERED"]
+        recovered.update(claims=sum(o["count"] for o in done), amount=sum(o["recovered"] for o in done))
+    if recovered["claims"]:
+        phase("5. Hãng hoàn tiền, claim đã thu hồi", t1)
+
     report = {
         "run_id": run_id, "database": db.name, "seed": SEED, "carrier": CARRIER,
         "incident": {k: v for k, v in inc.items() if k != "csv"},
-        "claims": {"alert_id": alert_id, "drafts": len(drafts), "drafts_on_retry": len(again),
+        "claims": {"webhook": webhook_mode, "alert_id": alert_id, "drafts": len(drafts),
+                   "drafts_on_retry": len(again) if webhook_mode != "real" else None, "recovered": recovered,
                    "not_submitted": not_sent, "approved_by": approve_by},
         "phases": phases,
     }
@@ -244,6 +337,12 @@ def main() -> None:
     parser.add_argument("--sink", choices=["auto", "datadog", "console", "none"], default="auto")
     parser.add_argument("--approve-by", help="tên người duyệt: duyệt và gửi hãng hàng loạt thay vì chờ giao diện")
     parser.add_argument("--wait-minutes", type=float, default=30, help="thời gian chờ người duyệt trên giao diện")
+    parser.add_argument("--webhook", choices=["simulate", "real"], default="simulate",
+                        help="simulate: giả lập webhook; real: chờ Datadog gọi API thật (không thấy thì giả lập dự phòng)")
+    parser.add_argument("--webhook-wait-minutes", type=float, default=15, help="thời gian chờ webhook thật")
+    parser.add_argument("--recover-by", help="tên người ghi nhận: hãng hoàn đủ tiền cho các claim đã gửi (pha 5)")
+    parser.add_argument("--wait-recovery-minutes", type=float, default=0,
+                        help="chờ người ghi nhận hãng hoàn tiền trên giao diện (pha 5), 0 = không chờ")
     parser.add_argument("--errors", type=int, default=ERRORS)
     parser.add_argument("--shortfall", type=int, default=SHORTFALL)
     args = parser.parse_args()
@@ -255,6 +354,8 @@ def main() -> None:
     db = MongoClient(config.MONGO_URI)[args.db]
     run(db, metric=metric, hold_minutes=args.hold_minutes, interval=args.interval, approve_by=args.approve_by,
         wait_minutes=args.wait_minutes, errors=args.errors, shortfall=args.shortfall,
+        webhook=args.webhook, webhook_wait_minutes=args.webhook_wait_minutes,
+        recover_by=args.recover_by, wait_recovery_minutes=args.wait_recovery_minutes,
         log=lambda s: print(s, flush=True))
 
 

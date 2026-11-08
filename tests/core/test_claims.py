@@ -160,3 +160,65 @@ def test_list(env):
     assert [c["order_code"] for c in svc.list()] == ["B-2", "B-1"]
     assert [c["order_code"] for c in svc.list(status="APPROVED")] == ["B-2"]
     assert all("_id" not in c for c in svc.list())
+
+
+def _recover(svc, code, alert_id=None):
+    c = svc.create_draft(rid(code), "datadog_webhook", alert_id)
+    svc.approve(c["claim_id"], "Kế toán Lan")
+    svc.submit(c["claim_id"], "Kế toán Lan")
+    return svc.mark_recovered(c["claim_id"], c["amount"], "Kế toán Lan")
+
+
+def test_recovered_amount_is_never_claimed_again(env):
+    """Hãng đã hoàn tiền: cảnh báo mới (alert khác) không được tạo claim nháp lần nữa cho khoản đó."""
+    db, svc, _ = env
+    done = _recover(svc, "B-1", alert_id="cycle-1")
+    with pytest.raises(ClaimError, match="đã hoàn tiền"):
+        svc.create_draft(rid("B-1"), "datadog_webhook", "cycle-2")
+    with pytest.raises(ClaimError, match="đã hoàn tiền"):
+        svc.create_draft(rid("B-1"), "manual")
+    assert svc.create_draft(rid("B-1"), "datadog_webhook", "cycle-1")["claim_id"] == done["claim_id"]  # cùng alert: trả lại
+    again = svc.create_drafts_for_carrier("carrier_b", "datadog_webhook", alert_id="cycle-2", within_hours=48)
+    assert [c["reconciliation_id"] for c in again] == [rid("B-2")]                 # B-1 đã thu hồi thì bỏ qua
+    assert db.claims.count_documents({"reconciliation_id": rid("B-1")}) == 1
+
+
+def _submitted(svc, code):
+    c = svc.create_draft(rid(code), "manual")
+    svc.approve(c["claim_id"], "Kế toán Lan")
+    return svc.submit(c["claim_id"], "Kế toán Lan")
+
+
+def test_reject_requires_reason_and_is_not_claimed_again(env):
+    db, svc, _ = env
+    c = _submitted(svc, "B-1")
+    with pytest.raises(ClaimError, match="lý do"):
+        svc.mark_rejected(c["claim_id"], "Kế toán Lan", "  ")
+    rejected = svc.mark_rejected(c["claim_id"], "Kế toán Lan", "thiếu ảnh biên nhận")
+    assert rejected["status"] == "REJECTED" and rejected["note"] == "thiếu ảnh biên nhận"
+    with pytest.raises(ClaimError, match="đã từ chối"):
+        svc.create_draft(rid("B-1"), "manual")                                     # không tạo claim mới
+    again = svc.create_drafts_for_carrier("carrier_b", "datadog_webhook", alert_id="cycle-9", within_hours=48)
+    assert rid("B-1") not in [x["reconciliation_id"] for x in again]               # webhook cũng bỏ qua
+    assert db.claims.count_documents({"reconciliation_id": rid("B-1")}) == 1
+
+
+def test_followup_log_then_carrier_agrees_after_contact(env, monkeypatch):
+    db, svc, clock = env
+    c = _submitted(svc, "B-1")
+    with pytest.raises(ClaimError, match="nội dung"):
+        svc.add_followup(c["claim_id"], "Kế toán Lan", "")
+    svc.add_followup(c["claim_id"], "Kế toán Lan", "Đã gửi email cho hãng")              # đang chờ phản hồi
+    svc.mark_rejected(c["claim_id"], "Kế toán Lan", "thiếu ảnh biên nhận")
+    next_at = T0 + timedelta(days=3)
+    f = svc.add_followup(c["claim_id"], "Kế toán Lan", "Gọi hãng, gửi lại ảnh; hãng hẹn trả lời", next_at)
+    assert [x["note"] for x in f["followups"]] == ["Đã gửi email cho hãng", "Gọi hãng, gửi lại ảnh; hãng hẹn trả lời"]
+    assert f["next_contact_at"] == to_db(next_at) and f["followups"][-1]["by"] == "Kế toán Lan"
+    done = svc.mark_recovered(c["claim_id"], 4_000, "Kế toán Lan")                       # hãng đồng ý hoàn một phần
+    assert done["status"] == "RECOVERED" and done["recovered_amount"] == 4_000
+    assert [h["status"] for h in done["history"]][-2:] == ["REJECTED", "RECOVERED"]
+    with pytest.raises(ClaimError, match="chỉ theo dõi"):
+        svc.add_followup(c["claim_id"], "Kế toán Lan", "sau khi đã thu hồi")
+    draft = svc.create_draft(rid("B-2"), "manual")
+    with pytest.raises(ClaimError, match="chỉ theo dõi"):
+        svc.add_followup(draft["claim_id"], "Kế toán Lan", "nháp chưa gửi hãng")

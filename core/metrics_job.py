@@ -11,6 +11,9 @@ Số liệu lấy từ pipelines/open_diffs.py (chênh lệch doanh nghiệp nh�
   để đồ thị liền mạch và monitor tự về OK.
 - `shipaudit.biz.claim_hours_left`: tag carrier. Số giờ còn lại tới hạn khiếu nại của khoản gần hạn nhất
   (khoản đã quá hạn không tính), chặn trên HOURS_CAP. Hãng không còn khoản nào cần xử lý thì bằng HOURS_CAP.
+- `shipaudit.biz.claim_amount` (VNĐ): tag carrier, claim_status (submitted | recovered | rejected). Tiền đã khiếu nại theo
+  trạng thái hiện tại của claim; `submitted` là đang chờ hãng phản hồi.
+- `shipaudit.biz.recovered_amount` (VNĐ): tag carrier. Tiền hãng đã hoàn lại cho các claim đã thu hồi (cộng dồn).
 LATE_PAYOUT không có tiền chênh lệch (tiền đủ, chỉ chậm) nên không nằm trong các metric tiền này.
 Mốc thời gian của điểm metric là giờ thật lúc gửi; `now` chỉ dùng để tính hạn khiếu nại.
 """
@@ -29,12 +32,16 @@ from common.enums import TAG_CARRIER, TAG_DIFF_TYPE, DiffType
 from contracts.interfaces import Metrics
 from core import queries
 from core.periods import as_aware
-from pipelines import open_diffs
+from pipelines import claims_outcome, open_diffs
 
 PREFIX = "shipaudit.biz."
 DIFF_AMOUNT = PREFIX + "diff_amount"
 DIFF_COUNT = PREFIX + "diff_count"
 CLAIM_HOURS_LEFT = PREFIX + "claim_hours_left"
+CLAIM_AMOUNT = PREFIX + "claim_amount"
+RECOVERED_AMOUNT = PREFIX + "recovered_amount"
+TAG_CLAIM_STATUS = "claim_status"
+CLAIM_STATUSES = ("SUBMITTED", "RECOVERED", "REJECTED")  # các trạng thái claim đã gửi hãng
 TAG_DEADLINE = "deadline"
 HOURS_CAP = 168  # 7 ngày: thanh hạn trên giao diện cũng đầy từ mốc này
 OWED_TYPES = [t.value for t in DiffType if t not in (DiffType.NONE, DiffType.LATE_PAYOUT)]
@@ -56,6 +63,7 @@ def collect(db: Any, now: datetime) -> list[Point]:
                            | {b["carrier"] for b in out["buckets"]})
     got = {(b["carrier"], b["diff_type"], b["deadline"]): b for b in out["buckets"]}
     nearest = {n["carrier"]: n["min_hours_left"] for n in out["nearest"]}
+    outcomes = {(o["carrier"], o["status"]): o for o in claims_outcome.run(db)}
     diff_types = OWED_TYPES + sorted({b["diff_type"] for b in out["buckets"]} - set(OWED_TYPES))
 
     points: list[Point] = []
@@ -68,6 +76,11 @@ def collect(db: Any, now: datetime) -> list[Point]:
                 points.append(Point(DIFF_COUNT, b.get("count", 0), tags))
         hours = nearest.get(carrier)
         points.append(Point(CLAIM_HOURS_LEFT, HOURS_CAP if hours is None else min(hours, HOURS_CAP),
+                            {TAG_CARRIER: carrier}))
+        for status in CLAIM_STATUSES:
+            points.append(Point(CLAIM_AMOUNT, outcomes.get((carrier, status), {}).get("amount", 0),
+                                {TAG_CARRIER: carrier, TAG_CLAIM_STATUS: status.lower()}))
+        points.append(Point(RECOVERED_AMOUNT, sum(o.get("recovered", 0) for (c, _), o in outcomes.items() if c == carrier),
                             {TAG_CARRIER: carrier}))
     return points
 

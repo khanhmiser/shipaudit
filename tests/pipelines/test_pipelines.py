@@ -78,6 +78,19 @@ def test_diff_trend_cumulative_and_7_days(seeded, recs):
             assert type(row["amount_7d"]) is int
 
 
+def test_diff_trend_by_week_starts_monday_and_matches_daily(seeded):
+    db, _ = seeded
+    daily, weekly = diff_trend.run(db), diff_trend.run(db, unit="week")
+    for carrier in ("carrier_a", "carrier_b", "carrier_c"):
+        d = [r for r in daily if r["carrier"] == carrier]
+        w = [r for r in weekly if r["carrier"] == carrier]
+        assert sum(r["diff_amount"] for r in w) == sum(r["diff_amount"] for r in d)      # không mất, không trùng đồng nào
+        assert w[-1]["cumulative_amount"] == d[-1]["cumulative_amount"]
+        assert all(as_aware(r["day"]).astimezone(VN_TZ).weekday() == 0 for r in w)    # tuần bắt đầu thứ Hai giờ VN
+    with pytest.raises(ValueError):
+        diff_trend.pipeline(unit="month")
+
+
 # ── $lookup ──
 def test_missing_orders_match_reconcile_and_labels(seeded, recs):
     db, ds = seeded

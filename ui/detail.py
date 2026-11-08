@@ -188,8 +188,11 @@ def recovery_steps(rec: dict, claim: dict | None) -> list[dict]:
              "APPROVED": ("Đã duyệt, chờ gửi hãng", "now"), "EXPIRED": ("Quá hạn khiếu nại", "wait")
              }.get(status, ("Đã gửi hãng", "done"))
     recovered = vnd((claim or {}).get("recovered_amount", 0))
+    reason = (claim or {}).get("note") or "chưa ghi lý do"
+    follow = len((claim or {}).get("followups") or [])
     step4 = {"SUBMITTED": ("Chờ hãng phản hồi", "now"), "RECOVERED": (f"Đã thu hồi {recovered}", "done"),
-             "REJECTED": ("Hãng từ chối", "done")}.get(status, ("Chờ", "wait"))
+             "REJECTED": (f"Hãng từ chối ({reason}); doanh nghiệp tự liên hệ, {follow} lần theo dõi", "now"),
+             }.get(status, ("Chờ", "wait"))
     return [
         {"title": "Phát hiện", "sub": f"Đối soát bắt chênh lệch {vnd(rec['diff'])}", "state": "done"},
         {"title": "Điều tra", "sub": "Đối chiếu từng khoản với quy tắc hãng", "state": "done"},

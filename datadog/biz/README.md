@@ -41,6 +41,30 @@ Message có `$UI_URL` (link màn Streamlit) và `$NOTIFY` (handle thông báo, v
 
 "ShipAudit [biz] Đối soát cước: chênh lệch và hạn khiếu nại": 4 KPI (tiền và số khoản còn trong hạn, giờ còn lại ngắn nhất, chênh lệch đã quá hạn), đồ thị theo hãng kèm dải Anomaly Detection và vạch ngưỡng, giờ còn lại theo hãng, tiền theo loại chênh lệch, số khoản theo mức hạn, trạng thái các monitor nghiệp vụ. Biến `carrier`, `env`.
 
+## Năng lực Datadog thêm (30/10/2026, không cần Docker hay Agent)
+
+| Năng lực | Ở đâu | Dùng để |
+|---|---|---|
+| Log Management (gửi thẳng Logs API) | `DD_LOGS_AGENTLESS=true` khi chạy API và Streamlit; `logs.json`: pipeline gắn tag `carrier`, `alert_id`, `monitor_id`, `claim_id`, `ui_event` và 2 log-based metric `shipaudit.biz.logs.claim_actions`, `shipaudit.biz.logs.webhook_calls` | Từ cảnh báo bấm "Related Logs" ra đúng log của hãng; lần theo `alert_id` từ monitor → webhook → claim |
+| Notebook điều tra | `notebook.json` (13 ô) | Đi 5 bước: phát hiện, sát hạn, loại chênh lệch, webhook đã tạo claim chưa, kết quả xử lý; ô Kết luận để điền |
+| Forecast monitor | `monitors.json` (`x_ref: forecast`) | Cảnh báo sớm khi xu hướng cho thấy tiền nhận thiếu sẽ chạm 15 triệu trong 24 giờ |
+| Outlier monitor | `monitors.json` (`x_ref: outlier`) | So sánh các hãng trên cùng thước đo, báo hãng khác biệt so với nhóm (không xếp hạng); chỉ xét hãng trên 5 triệu (`clamp_min`) |
+| Composite monitor + Case Management | `monitors.json` (`x_ref: composite`), `$CASE` | Chỉ khi vừa lệch lớn vừa sát hạn mới mở case (tránh nhiều case) |
+| SLO (time slice) | `slos.json` | % thời gian mọi khoản nhận thiếu chưa xử lý của mỗi hãng còn ≥ 24 giờ tới hạn khiếu nại; mục tiêu 99% / 7 ngày (giả định) |
+| Events | `core/events.py`, `SHIPAUDIT_DD_EVENTS=true` | Mỗi thao tác claim là một vạch đứng trên đồ thị (gộp theo hãng): tạo nháp, duyệt, gửi hãng, hoàn tiền, từ chối |
+
+Mọi tin nhắn monitor có liên kết sang notebook (`$REF[notebook_url]`) và log của hãng. Dashboard thêm vạch sự kiện trên 2 đồ thị chính và nhóm "Điều tra và mục tiêu" (SLO, luồng log thao tác claim và webhook, liên kết notebook).
+
+Chạy để có log và sự kiện (không Docker):
+
+```bash
+DD_LOGS_AGENTLESS=true SHIPAUDIT_DD_EVENTS=true uvicorn app.main:app --port 8000
+DD_LOGS_AGENTLESS=true SHIPAUDIT_DD_EVENTS=true streamlit run ui/app.py
+SHIPAUDIT_DD_EVENTS=true python -m scenarios.biz.run --db shipaudit_scenario --reset --approve-by "Tên" --recover-by "Tên"
+```
+
+Case Management (đã làm 30/10: project ShipAudit, handle `@case-shipaudit`, lưu ở `SHIPAUDIT_CASE_HANDLE` trong `.env`; làm một lần trên giao diện Datadog): Case Management → tạo project "ShipAudit" → Project Settings → Integrations → Datadog Monitors → bật để lấy handle `@case-<handle>`, rồi chạy `apply.py --case-handle @case-<handle>` (hoặc đặt `SHIPAUDIT_CASE_HANDLE`).
+
 ## Tạo trên Datadog
 
 Đã tạo ngày 22/10/2026 (nhập JSON trên giao diện Datadog): dashboard `3ti-98m-p8s`, monitor 72687, 72690, 72691. Id và đường dẫn trong `deployed.json`. Cách thủ công: Dashboard → Configure → Import dashboard JSON; Monitors → New Monitor → Import from JSON (dán bản đã thay `$UI_URL`, `$NOTIFY`).
@@ -50,10 +74,11 @@ Cần `DD_API_KEY` và `DD_APP_KEY` trong `.env` (Application Key tạo ở Orga
 ```bash
 python datadog/biz/apply.py --dry-run
 python datadog/biz/apply.py                               # tạo hoặc cập nhật theo đúng tên, ghi deployed.json
-python datadog/biz/apply.py --notify @webhook-shipaudit   # khi A đã tạo webhook integration (A9)
+python datadog/biz/apply.py --notify @webhook-shipaudit-claims --case-handle @case-shipaudit
+python datadog/biz/apply.py --only monitors               # một phần: logs | slos | notebook | monitors | dashboard
 ```
 
-Script chỉ tạo hoặc sửa dashboard / monitor có đúng tên trong JSON, không xóa gì, không đụng các dashboard / monitor khác của tổ chức.
+Thứ tự tạo: log → SLO → notebook → monitor (monitor gộp sau cùng) → dashboard; `$REF[khóa]` nối các đối tượng với nhau. Script chỉ tạo hoặc sửa dashboard / monitor có đúng tên trong JSON, không xóa gì, không đụng các dashboard / monitor khác của tổ chức.
 Sửa trên giao diện Datadog thì chép lại JSON vào đây để tái tạo được.
 
 ## Ghép với webhook của A (A9)

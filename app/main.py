@@ -1,6 +1,7 @@
 """[A] Khởi tạo FastAPI và gắn các router. Bật log JSON và tracing trước khi tạo app."""
 from fastapi import FastAPI
 
+from common import config  # noqa: F401  nạp .env trước khi bật log (chạy trên máy không Docker: DD_API_KEY nằm trong .env)
 from app.telemetry.logging import setup_logging
 from app.telemetry.tracing import setup_tracing
 

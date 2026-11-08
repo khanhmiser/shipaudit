@@ -16,4 +16,5 @@ if [ -f ../ShipAudit_Ke-hoach-ky-thuat_AB.docx ]; then
 fi
 pandoc src/theo-doi-tien-do.md --reference-doc="$REF" -M date="$NGAY" -o ShipAudit_04_Theo-doi-tien-do.docx
 pandoc src/brief-va-checklist.md --reference-doc="$REF" -M date="$NGAY" -o ShipAudit_05_Brief-va-checklist.docx
+pandoc ../ban-giao-cho-A.md --reference-doc="$REF" -M date="$NGAY" -o ShipAudit_06_Ban-giao-cho-A.docx
 echo "Xong. File Word nằm trong $(pwd)"

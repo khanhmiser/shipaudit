@@ -11,8 +11,10 @@ from pathlib import Path
 import pytest
 
 from core import metrics_job, metrics_sink
-from core.metrics_job import CLAIM_HOURS_LEFT, DIFF_AMOUNT, DIFF_COUNT, HOURS_CAP, OWED_TYPES
-from pipelines import open_diffs
+from core.metrics_job import (
+    CLAIM_AMOUNT, CLAIM_HOURS_LEFT, CLAIM_STATUSES, DIFF_AMOUNT, DIFF_COUNT, HOURS_CAP, OWED_TYPES, RECOVERED_AMOUNT,
+)
+from pipelines import claims_outcome, open_diffs
 
 NOW = datetime(2026, 10, 19, 5, 0, tzinfo=timezone.utc)
 BIZ = Path(__file__).resolve().parents[2] / "datadog" / "biz"
@@ -32,6 +34,11 @@ def fake_sources(monkeypatch):
                     {"carrier": "carrier_a", "min_hours_left": 400.0, "count": 2}],
     }
     monkeypatch.setattr(open_diffs, "run", lambda db, now, carrier=None: result)
+    monkeypatch.setattr(claims_outcome, "run", lambda db, carrier=None: [
+        {"carrier": "carrier_b", "status": "SUBMITTED", "count": 2, "amount": 300_000, "recovered": 0},
+        {"carrier": "carrier_b", "status": "RECOVERED", "count": 3, "amount": 450_000, "recovered": 440_000},
+        {"carrier": "carrier_a", "status": "REJECTED", "count": 1, "amount": 50_000, "recovered": 0},
+    ])
     monkeypatch.setattr(metrics_job.queries, "carriers", lambda db: CARRIERS)
     return result
 
@@ -44,13 +51,23 @@ def _value(points, name, **tags):
 
 def test_collect_fills_every_combination_with_zero(fake_sources):
     points = metrics_job.collect(None, NOW)
-    per_carrier = len(OWED_TYPES) * len(open_diffs.DEADLINE_BUCKETS) * 2 + 1
+    per_carrier = len(OWED_TYPES) * len(open_diffs.DEADLINE_BUCKETS) * 2 + 1 + len(CLAIM_STATUSES) + 1
     assert len(points) == 3 * per_carrier
     assert "LATE_PAYOUT" not in OWED_TYPES and "NONE" not in OWED_TYPES
     assert _value(points, DIFF_AMOUNT, carrier="carrier_b", diff_type="FEE_MISMATCH", deadline="lt24h") == 15_000
     assert _value(points, DIFF_COUNT, carrier="carrier_b", diff_type="FEE_MISMATCH", deadline="lt24h") == 3
     assert _value(points, DIFF_AMOUNT, carrier="carrier_c", diff_type="FEE_MISMATCH", deadline="lt24h") == 0
     assert all(p.name.startswith("shipaudit.biz.") for p in points)
+
+
+def test_claim_outcome_metrics(fake_sources):
+    points = metrics_job.collect(None, NOW)
+    assert _value(points, CLAIM_AMOUNT, carrier="carrier_b", claim_status="submitted") == 300_000
+    assert _value(points, CLAIM_AMOUNT, carrier="carrier_b", claim_status="recovered") == 450_000
+    assert _value(points, CLAIM_AMOUNT, carrier="carrier_a", claim_status="rejected") == 50_000
+    assert _value(points, CLAIM_AMOUNT, carrier="carrier_c", claim_status="submitted") == 0      # đủ mọi tổ hợp
+    assert _value(points, RECOVERED_AMOUNT, carrier="carrier_b") == 440_000                      # hãng hoàn thiếu 10.000
+    assert _value(points, RECOVERED_AMOUNT, carrier="carrier_a") == 0
 
 
 def test_claim_hours_left_is_capped_and_defaults_to_cap(fake_sources):
@@ -186,7 +203,8 @@ def _queries(obj):
             yield from _queries(v)
 
 
-KNOWN_METRICS = {DIFF_AMOUNT, DIFF_COUNT, CLAIM_HOURS_LEFT}
+KNOWN_METRICS = {DIFF_AMOUNT, DIFF_COUNT, CLAIM_HOURS_LEFT, CLAIM_AMOUNT, RECOVERED_AMOUNT,
+                 "shipaudit.biz.logs.claim_actions", "shipaudit.biz.logs.webhook_calls"}
 
 
 def _check_query(q):
@@ -199,14 +217,23 @@ def _check_query(q):
 def test_monitor_definitions():
     apply = _load_apply()
     _, monitors = apply.load_definitions()
-    assert len(monitors) == 3
+    assert [m["x_ref"] for m in monitors] == ["threshold", "deadline", "anomaly", "forecast", "outlier", "composite"]
     for m in monitors:
-        assert m["name"].startswith("ShipAudit [biz]")
+        assert m["name"].startswith("ShipAudit [biz]") and "{{carrier.name}}" in m["name"]
         assert {"project:shipaudit", "layer:biz"} <= set(m["tags"])
+        assert "$REF[notebook_url]" in m["message"]                 # đi thẳng từ cảnh báo sang notebook điều tra
+        if m["type"] == "composite":
+            continue
         assert m["type"] == "query alert"
         _check_query(m["query"])
         assert "by {carrier}" in m["query"]
-    threshold, expiring, anomaly = monitors
+    threshold, expiring, anomaly, forecast, outlier, composite = monitors
+    assert "forecast(" in forecast["query"] and forecast["query"].startswith("max(next_")
+    assert forecast["query"].endswith(f">= {forecast['options']['thresholds']['critical']}")
+    assert "outliers(" in outlier["query"]
+    assert composite["query"] == "$REF[threshold] && $REF[deadline]"
+    assert "$CASE" in composite["message"] and "$CASE" not in threshold["message"]
+    assert all("$NOTIFY" not in m["message"] for m in (forecast, outlier, composite))   # webhook chỉ ở 3 monitor gốc
     assert threshold["query"].endswith(f"> {threshold['options']['thresholds']['critical']}")
     assert expiring["query"].endswith(f"< {expiring['options']['thresholds']['critical']}")
     assert expiring["options"]["thresholds"]["warning"] > expiring["options"]["thresholds"]["critical"]
@@ -280,3 +307,71 @@ def test_apply_updates_by_name_and_creates_missing():
     assert not any(m == "DELETE" for m, _ in calls)
     assert out["dashboard"]["url"] == "https://uk1.datadoghq.com/dashboard/new-das-hbd"
     assert [m["id"] for m in out["monitors"]] == ["11", 99]
+
+
+def test_every_ref_has_a_source_and_queries_are_known():
+    apply = _load_apply()
+    d = apply.load_all()
+    sources = {m["x_ref"] for m in d["monitors"]} | {s["x_ref"] for s in d["slos"]} | {"notebook_url"}
+    text = json.dumps(d, ensure_ascii=False)
+    assert set(re.findall(r"\$REF\[(\w+)\]", text)) <= sources
+    for q in _queries(d["slos"]) :
+        _check_query(q)
+    for q in _queries(d["notebook"]):
+        if not q.startswith("service:"):        # ô log_stream là truy vấn log, không phải metric
+            _check_query(q)
+    slo = d["slos"][0]["sli_specification"]["time_slice"]
+    assert slo["comparator"] == ">=" and slo["threshold"] == 24 and "by {carrier}" in slo["query"]["queries"][0]["query"]
+    assert [c["definition"]["type"] for c in d["notebook"]["cells"]].count("log_stream") == 2
+    assert {m["id"] for m in d["logs"]["metrics"]} == {"shipaudit.biz.logs.claim_actions", "shipaudit.biz.logs.webhook_calls"}
+    remapped = {p["target"] for p in d["logs"]["pipeline"]["processors"] if p["type"] == "attribute-remapper"}
+    assert {"carrier", "alert_id", "claim_id"} <= remapped
+
+
+def test_apply_all_parts_in_dependency_order_and_resolves_refs():
+    apply = _load_apply()
+    d = apply.load_all()
+    calls, bodies = [], {}
+
+    class FakeApi(apply.DatadogApi):
+        def __init__(self):
+            self.next_id = 100
+
+        def call(self, method, path, body=None, params=None):
+            calls.append((method, path))
+            bodies[(method, path)] = body
+            if method == "GET":
+                if path.startswith("/api/v2/logs/config/metrics/"):
+                    raise RuntimeError(f"GET {path} -> 404: not found")
+                return {} if path in ("/api/v1/dashboard", "/api/v1/slo", "/api/v1/notebooks") else []
+            self.next_id += 1
+            if path == "/api/v1/slo":
+                return {"data": [{"id": "slo-abc"}]}
+            if path == "/api/v1/notebooks":
+                return {"data": {"id": 777}}
+            return {"id": self.next_id}
+
+    monitors = [apply.render_monitor(m, "http://ui", "@webhook-x", "@case-shipaudit", "https://uk1.datadoghq.com")
+                for m in d["monitors"]]
+    out = apply.apply(FakeApi(), d["dashboard"], monitors, "uk1.datadoghq.com", slos=d["slos"],
+                      notebook=d["notebook"], logs=d["logs"])
+    posts = [p for m, p in calls if m == "POST" and not p.endswith("/validate")]
+    assert posts[0] == "/api/v1/logs/config/pipelines" and posts[-1] == "/api/v1/dashboard"
+    assert posts.index("/api/v1/slo") < posts.index("/api/v1/notebooks") < posts.index("/api/v1/monitor")
+    ids = {m["ref"]: m["id"] for m in out["monitors"]}
+    composite = bodies[("POST", "/api/v1/monitor")]                          # monitor gộp tạo sau cùng
+    assert composite["type"] == "composite" and composite["query"] == f"{ids['threshold']} && {ids['deadline']}"
+    assert "@case-shipaudit" in composite["message"] and "x_ref" not in composite
+    assert out["notebook"]["url"] == "https://uk1.datadoghq.com/notebook/777"
+    dash = json.dumps(bodies[("POST", "/api/v1/dashboard")], ensure_ascii=False)
+    assert "$REF[" not in dash and "slo-abc" in dash and "notebook/777" in dash
+    assert out["slos"][0]["ref"] == "slo_deadline" and len(out["logs"]["metrics"]) == 2
+    assert not any(m == "DELETE" for m, _ in calls)
+
+
+def test_missing_ref_is_a_clear_error():
+    apply = _load_apply()
+    with pytest.raises(RuntimeError, match=r"\$REF\[deadline\]"):
+        apply.resolve_refs({"query": "1 && $REF[deadline]"}, {"threshold": 1})
+    previous = {"monitors": [{"ref": "threshold", "id": 5}], "notebook": {"url": "u"}}
+    assert apply.refs_from(previous) == {"threshold": 5, "notebook_url": "u"}

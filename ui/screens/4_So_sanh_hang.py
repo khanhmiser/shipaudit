@@ -62,32 +62,74 @@ else:
         st.dataframe(by_type.drop(columns="Số tiền (₫)"), hide_index=True,
                      column_config=shared.money_columns("Số tiền"))
 
-# ── Xu hướng theo ngày giao ──
-st.subheader("Xu hướng chênh lệch theo ngày giao")
-mode = st.radio("Cách cộng", ["7 ngày gần nhất", "Cộng dồn"], horizontal=True, key="cmp_trend")
+# ── Chênh lệch theo thời gian ──
+st.subheader("Chênh lệch theo thời gian")
+st.caption("Tính theo ngày giao hàng của đơn. Chênh lệch = số tiền phải nhận − số tiền thực nhận "
+           "(số âm là doanh nghiệp nhận thừa).")
+MODES = {
+    "Từng tuần": "Mỗi cột là tổng chênh lệch của các đơn giao trong tuần đó (thứ Hai đến Chủ nhật), "
+                 "cùng cách chia kỳ đối soát. Cột cao là tuần có nhiều chênh lệch.",
+    "Từng ngày": "Mỗi điểm là tổng chênh lệch của các đơn giao đúng ngày đó.",
+    "Cộng dồn từ đầu": "Mỗi điểm là tổng chênh lệch từ ngày đầu tiên tới ngày đó. Đường càng dốc là chênh lệch "
+                       "phát sinh càng nhanh; đường đi ngang là không phát sinh thêm.",
+}
+f = st.columns([3, 3, 2])
+mode = f[0].radio("Xem theo", list(MODES), horizontal=True, key="cmp_trend_mode")
+picked = f[1].multiselect("Hãng", sorted(names), default=sorted(names), key="cmp_trend_carriers",
+                          format_func=lambda c: names[c])
+measure_t = f[2].radio("Đo theo", ["Số tiền", "Số đơn"], horizontal=True, key="cmp_trend_measure")
+st.caption(MODES[mode])
+
 since = until = None
 if chosen:
     # Kỳ là kỳ chuyển tiền, ngày giao sớm hơn vài ngày: lấy rộng thêm một tuần về trước.
     since = period_bounds(min(chosen))[0] - timedelta(days=7)
     until = period_bounds(max(chosen))[1]
-trend = queries.diff_trend_by_day(db, None, since, until)
-if trend:
-    field = "amount_7d" if mode == "7 ngày gần nhất" else "cumulative_amount"
-    tdf = pd.DataFrame([{
-        "Ngày": pd.Timestamp(t["day"]).tz_localize("UTC").tz_convert("Asia/Ho_Chi_Minh").tz_localize(None),
-        "Hãng": names.get(t["carrier"], t["carrier"]),
-        "Số tiền": t[field],
-        "Số tiền (₫)": view.vnd(t[field]),
-        "Số đơn": t["count_7d"] if field == "amount_7d" else t["cumulative_count"],
-    } for t in trend])
-    lines = alt.Chart(tdf).mark_line(strokeWidth=2, point=alt.OverlayMarkDef(size=40)).encode(
-        x=alt.X("Ngày:T", title=None, axis=alt.Axis(format="%d/%m")),
-        y=alt.Y("Số tiền:Q", axis=shared.vnd_axis(f"Chênh lệch, {mode.lower()} (₫)")),
-        color=alt.Color("Hãng:N", scale=scale, legend=alt.Legend(orient="top", title=None)),
-        tooltip=[alt.Tooltip("Ngày:T", format="%d/%m/%Y"), "Hãng",
-                 "Số tiền (₫)", "Số đơn"],
-    ).properties(height=320)
-    st.altair_chart(lines, width="stretch")
+weekly = mode == "Từng tuần"
+trend = [t for t in queries.diff_trend_by_day(db, None, since, until, unit="week" if weekly else "day")
+         if t["carrier"] in picked]
+if not picked:
+    st.info("Chọn ít nhất một hãng.")
+elif not trend:
+    st.info("Không có chênh lệch trong khoảng thời gian đã chọn.")
+else:
+    cumulative = mode == "Cộng dồn từ đầu"
+    rows = []
+    for t in trend:
+        day = pd.Timestamp(t["day"]).tz_localize("UTC").tz_convert("Asia/Ho_Chi_Minh").tz_localize(None)
+        amount = t["cumulative_amount"] if cumulative else t["diff_amount"]
+        count = t["cumulative_count"] if cumulative else t["diff_count"]
+        iso = day.isocalendar()
+        rows.append({
+            "Ngày": day,
+            "Tuần": view.period_label(f"{iso[0]}-W{iso[1]:02d}"),
+            "Hãng": names.get(t["carrier"], t["carrier"]),
+            "Số tiền": amount,
+            "Số tiền (₫)": view.vnd(amount),
+            "Số đơn": count,
+        })
+    tdf = pd.DataFrame(rows)
+    y_title = "Chênh lệch (₫)" if measure_t == "Số tiền" else "Số đơn có chênh lệch"
+    y_axis = shared.vnd_axis(y_title) if measure_t == "Số tiền" else alt.Axis(title=y_title, format="d")
+    color = alt.Color("Hãng:N", scale=scale, legend=alt.Legend(orient="top", title=None))
+    if weekly:
+        week_order = list(dict.fromkeys(tdf.sort_values("Ngày")["Tuần"]))
+        chart = alt.Chart(tdf).mark_bar(cornerRadiusEnd=4).encode(
+            x=alt.X("Tuần:N", sort=week_order, title=None, axis=alt.Axis(labelAngle=0, labelLimit=180)),
+            xOffset=alt.XOffset("Hãng:N", scale=alt.Scale(domain=scale.domain)),
+            y=alt.Y(f"{measure_t}:Q", axis=y_axis),
+            color=color,
+            tooltip=["Tuần", "Hãng", "Số tiền (₫)", "Số đơn"],
+        )
+    else:
+        chart = alt.Chart(tdf).mark_line(strokeWidth=2, point=alt.OverlayMarkDef(size=40)).encode(
+            x=alt.X("Ngày:T", title=None, axis=alt.Axis(format="%d/%m")),
+            y=alt.Y(f"{measure_t}:Q", axis=y_axis),
+            color=color,
+            tooltip=[alt.Tooltip("Ngày:T", format="%d/%m/%Y"), "Hãng", "Số tiền (₫)", "Số đơn"],
+        )
+    st.altair_chart(chart.properties(height=320), width="stretch")
     with st.expander("Bảng số liệu"):
-        st.dataframe(tdf.drop(columns="Số tiền (₫)"), hide_index=True, column_config={
+        cols = ["Tuần", "Hãng", "Số tiền", "Số đơn"] if weekly else ["Ngày", "Hãng", "Số tiền", "Số đơn"]
+        st.dataframe(tdf[cols], hide_index=True, column_config={
             **shared.money_columns("Số tiền"), "Ngày": st.column_config.DateColumn(format="DD/MM/YYYY")})

@@ -1,0 +1,7 @@
+# Thư viện cho giao diện Streamlit (ui/app.py) khi triển khai lên Streamlit Community Cloud (Python 3.12).
+# Ghim đúng phiên bản đã chạy thử. Bản đầy đủ (API, Datadog, test) cài từ pyproject.toml: pip install -e ".[dev]".
+streamlit==1.66.1
+pandas==3.0.6
+altair==6.3.0
+pymongo==4.19.0
+python-dotenv==1.2.4

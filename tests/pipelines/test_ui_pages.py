@@ -106,3 +106,67 @@ def test_bulk_approve_drafts(ui_env, now):
     assert not at.exception
     got = {c["claim_id"]: c for c in db[Collections.CLAIMS].find({"claim_id": {"$in": ids}})}
     assert all(c["status"] == "APPROVED" and c["approved_by"] == "Người duyệt hàng loạt" for c in got.values())
+
+
+WRITE_KEYS = {"expire", "bulk_approve", "bulk_recover", "approve", "submit", "recover", "reject",
+              "draft_chosen", "draft_all"}
+
+
+def test_read_only_hides_every_write_action(ui_env, now, monkeypatch):
+    """Bản demo cho giám khảo (SHIPAUDIT_READ_ONLY=true): trang vẫn chạy, không còn nút ghi dữ liệu nào."""
+    db = ui_env
+    rec = db[Collections.RECONCILIATIONS].find_one({"diff": {"$gt": 0}, "diff_type": {"$ne": "LATE_PAYOUT"},
+                                                    "claim_deadline_at": {"$gt": to_db(now)}})
+    from core.claims import ClaimService
+    ClaimService(db, now=lambda: now).create_draft(rec["reconciliation_id"], "manual")   # để trang Claims có claim
+    monkeypatch.setenv("SHIPAUDIT_READ_ONLY", "true")
+    for page in PAGES:
+        state = {"order_code": rec["order_code"]} if page.stem == "2_Chi_tiet_don" else {}
+        at = _run(page, **state)
+        assert not at.exception, (page.stem, [e.message for e in at.exception])
+        keys = {b.key for b in at.button} | {b.key for b in at.get("download_button") if hasattr(b, "key")}
+        assert not (keys & WRITE_KEYS), (page.stem, keys & WRITE_KEYS)
+        assert not any((b.key or "").startswith("draft_") for b in at.button), page.stem
+
+
+def test_streamlit_secrets_become_env(ui_env):
+    """Streamlit Community Cloud: secrets cấp gốc thành biến môi trường trước khi trang đọc cấu hình."""
+    import os
+    os.environ.pop("SHIPAUDIT_READ_ONLY", None)
+    try:
+        at = AppTest.from_file(str(UI / "app.py"), default_timeout=90)
+        at.secrets["SHIPAUDIT_READ_ONLY"] = "true"
+        at.run()
+        assert not at.exception, [e.message for e in at.exception]
+        assert os.environ.get("SHIPAUDIT_READ_ONLY") == "true"
+        assert any("Bản demo chỉ xem" in i.value for i in at.sidebar.info)
+    finally:
+        os.environ.pop("SHIPAUDIT_READ_ONLY", None)
+
+
+def test_rejected_claim_followup_on_claims_page(ui_env, now):
+    """Claim bị hãng từ chối: trang Claims hiện lý do, ghi được nhật ký theo dõi; Tổng quan có thẻ theo dõi."""
+    from core.claims import ClaimService
+    db = ui_env
+    rec = db[Collections.RECONCILIATIONS].find_one({"diff": {"$gt": 0}, "diff_type": {"$ne": "LATE_PAYOUT"},
+                                                    "claim_deadline_at": {"$gt": to_db(now)}})
+    svc = ClaimService(db, now=lambda: now)
+    c = svc.create_draft(rec["reconciliation_id"], "manual")
+    svc.approve(c["claim_id"], "Kế toán Lan")
+    svc.submit(c["claim_id"], "Kế toán Lan")
+    svc.mark_rejected(c["claim_id"], "Kế toán Lan", "thiếu ảnh biên nhận")
+
+    at = _run(UI / "screens" / "5_Claims.py", cl_status="REJECTED", cl_pick=c["claim_id"])
+    assert not at.exception, [e.message for e in at.exception]
+    assert any("thiếu ảnh biên nhận" in w.value for w in at.warning)
+    at.text_input(key="cl_person").set_value("Kế toán Lan")
+    at.text_area(key="rej_fu_note").set_value("Đã gọi hãng, gửi lại ảnh biên nhận")
+    at.run()
+    at.button(key="rej_fu_save").click().run()
+    assert not at.exception, [e.message for e in at.exception]
+    saved = db[Collections.CLAIMS].find_one({"claim_id": c["claim_id"]})
+    assert saved["status"] == "REJECTED" and saved["followups"][-1]["note"] == "Đã gọi hãng, gửi lại ảnh biên nhận"
+
+    overview = _run(UI / "screens" / "0_Tong_quan.py")
+    assert not overview.exception
+    assert any("Bị từ chối, đang theo dõi" in h.value for h in overview.html)

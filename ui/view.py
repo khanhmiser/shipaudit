@@ -191,6 +191,15 @@ def expiring_rows(items: list[dict], names: dict[str, str], now: datetime) -> li
     } for i in items]
 
 
+def last_followup(claim: dict) -> str:
+    """Lần trao đổi với hãng gần nhất: "dd/mm/yyyy hh:mm · người: nội dung" (rỗng nếu chưa có)."""
+    items = claim.get("followups") or []
+    if not items:
+        return ""
+    f = items[-1]
+    return f"{dt_vn(f.get('at'))} · {f.get('by', '')}: {f.get('note', '')}"
+
+
 def claim_rows(claims: list[dict], names: dict[str, str], now: datetime) -> list[dict]:
     return [{
         "Mã claim": c["claim_id"],
@@ -203,6 +212,9 @@ def claim_rows(claims: list[dict], names: dict[str, str], now: datetime) -> list
         "Tạo lúc": dt_vn(c.get("created_at")),
         "Hạn khiếu nại": dt_vn(c.get("claim_deadline_at")),
         "Còn lại": time_left(c.get("claim_deadline_at"), now) if c["status"] in ("DRAFT", "APPROVED") else "—",
+        "Lý do từ chối": c.get("note") or "" if c["status"] == "REJECTED" else "",
+        "Theo dõi gần nhất": last_followup(c),
+        "Hẹn liên hệ lại": dt_vn(c.get("next_contact_at")) if c.get("next_contact_at") else "",
     } for c in claims]
 
 
@@ -392,12 +404,15 @@ def track(pct: float, tone: str = "primary", height: int | None = None) -> str:
 
 
 def short_left(deadline, now: datetime) -> str:
-    """Thời gian còn lại dạng ngắn cho bảng: "18 giờ", "1 ngày 6 giờ", "Quá hạn"."""
+    """Thời gian còn lại dạng ngắn cho bảng: "18 giờ", "1 ngày 6 giờ", "Quá hạn 3 ngày", "Quá hạn 5 giờ"."""
     hours = hours_left(deadline, now)
     if hours is None:
         return "—"
     if hours <= 0:
-        return "Quá hạn"
+        late = -hours
+        if late >= 24:
+            return f"Quá hạn {int(late // 24)} ngày"
+        return f"Quá hạn {int(late)} giờ" if late >= 1 else "Quá hạn <1 giờ"
     days, rest = divmod(int(hours), 24)
     if days and rest:
         return f"{days} ngày {rest} giờ"

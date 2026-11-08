@@ -1,0 +1,25 @@
+[
+  {
+    "x_ref": "slo_deadline",
+    "type": "time_slice",
+    "name": "ShipAudit [biz] Xử lý chênh lệch trước khi sát hạn khiếu nại",
+    "description": "Tỉ lệ thời gian mà mọi khoản doanh nghiệp nhận thiếu chưa xử lý của mỗi hãng còn ít nhất 24 giờ tới hạn khiếu nại (shipaudit.biz.claim_hours_left >= 24, lát cắt 5 phút). Khoản đã có claim gửi hãng thì không còn tính. Tính riêng từng hãng để so sánh các hãng trên cùng thước đo, không xếp hạng. Mục tiêu 99% trong 7 ngày là kịch bản giả định; dữ liệu tổng hợp.",
+    "sli_specification": {
+      "time_slice": {
+        "query": {
+          "formulas": [{"formula": "query1"}],
+          "queries": [
+            {"data_source": "metrics", "name": "query1", "query": "min:shipaudit.biz.claim_hours_left{*} by {carrier}"}
+          ]
+        },
+        "comparator": ">=",
+        "threshold": 24,
+        "query_interval_seconds": 300
+      }
+    },
+    "thresholds": [
+      {"timeframe": "7d", "target": 99.0, "warning": 99.5}
+    ],
+    "tags": ["project:shipaudit", "layer:biz", "service:shipaudit-biz"]
+  }
+]

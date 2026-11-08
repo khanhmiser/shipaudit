@@ -150,15 +150,25 @@ with right:
             if claim and claim["status"] in OPEN_STATUSES:
                 st.info(f"Đã có claim {claim['claim_id']} ({view.CLAIM_STATUS_LABELS[claim['status']]}), "
                         f"số tiền {view.vnd(claim['amount'])}. Xử lý ở trang Claims.")
+            elif claim and claim["status"] == "REJECTED":
+                st.warning(f"Hãng đã từ chối claim {claim['claim_id']}: {claim.get('note') or 'chưa ghi lý do'}. "
+                           "Doanh nghiệp tự liên hệ hãng; ghi nhật ký theo dõi ở trang Claims, không tạo claim mới.")
+            elif claim and claim["status"] == "RECOVERED":
+                st.success(f"Hãng đã hoàn {view.vnd(claim.get('recovered_amount'))} (claim {claim['claim_id']}). "
+                           "Khoản này đã xử lý xong, không khiếu nại lại.")
             elif deadline is not None and as_aware(deadline) <= now:
                 st.caption("Đã quá hạn khiếu nại, không tạo claim được.")
+            elif shared.read_only():
+                st.caption(shared.READ_ONLY_NOTE)
             elif st.button(f"Tạo claim nháp {view.vnd(rec['diff'])}", key=f"draft_{rid}", type="primary"):
                 try:
                     created = shared.claim_service().create_draft(rid, "manual")
                 except ClaimError as e:
                     st.error(str(e))
                 else:
-                    shared.track("claim_draft", claim_id=created["claim_id"], reconciliation_id=rid)
+                    shared.track("claim_draft", claim_id=created["claim_id"], reconciliation_id=rid,
+                                 carrier=created["carrier"], amount=created["amount"])
+                    shared.claim_event("created", [created], source="manual")
                     shared.flash(f"Đã tạo claim nháp {created['claim_id']}. Người duyệt xử lý ở trang Claims.")
                     st.rerun()
     st.html(view.card("Đường đi phục hồi", detail.steps_html(detail.recovery_steps(rec, claim))))

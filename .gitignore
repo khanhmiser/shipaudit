@@ -13,3 +13,6 @@ generator/out/*
 .DS_Store
 .idea/
 .vscode/
+
+# Secrets của Streamlit (bản demo trên Community Cloud), không commit
+.streamlit/secrets.toml
